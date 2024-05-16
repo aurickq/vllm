@@ -396,6 +396,8 @@ class ArcticModel(nn.Module):
         hidden_states = self.norm(hidden_states)
         return hidden_states
 
+import time
+
 
 class ArcticForCausalLM(nn.Module):
 
@@ -418,6 +420,8 @@ class ArcticForCausalLM(nn.Module):
         self.logits_processor = LogitsProcessor(self.unpadded_vocab_size,
                                                 config.vocab_size)
         self.sampler = Sampler()
+        with open(f"trace.csv", "w") as f:
+            f.write("tokens,time\n")
 
     def forward(
         self,
@@ -428,6 +432,13 @@ class ArcticForCausalLM(nn.Module):
     ) -> torch.Tensor:
         hidden_states = self.model(input_ids, positions, kv_caches,
                                    attn_metadata)
+        torch.cuda.synchronize()
+        if hasattr(self, "start_time"):
+            duration = time.time() - self.start_time
+            if not get_tensor_model_parallel_rank():
+                with open(f"trace.csv", "a") as f:
+                    f.write(f"{duration},{input_ids.shape[0]}\n")
+        self.start_time = time.time()
         return hidden_states
 
     def compute_logits(self, hidden_states: torch.Tensor,
