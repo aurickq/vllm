@@ -73,12 +73,18 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             if -1 not in proposals
         ]
 
-        (spec_indices, non_spec_indices, target_seq_group_metadata_list,
+        print("proposal_token_ids_list_without_skips", proposal_token_ids_list_without_skips)
+        (prefill_indices, spec_indices, non_spec_indices, target_seq_group_metadata_list,
          num_scoring_tokens) = self._expand_batch(
              seq_group_metadata_list=execute_model_req.seq_group_metadata_list,
              proposal_token_ids_list=proposal_token_ids_list_without_skips,
              proposal_lens_list=proposal_lens_list,
          )
+        print("PREFILL_INDICES", prefill_indices)
+        print("SPEC_INDICES", spec_indices)
+        print("NON_SPEC_INDICES", non_spec_indices)
+        print("METADATA_LIST", [meta.is_prompt for meta in target_seq_group_metadata_list])
+        print("NUM_SCORING_TOKENS", num_scoring_tokens)
 
         target_sampler_output = self._scorer_worker.execute_model(
             execute_model_req=execute_model_req.clone(
@@ -86,6 +92,7 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         assert len(target_sampler_output) == 1, "expected single-step output"
         target_sampler_output = target_sampler_output[0]
 
+        num_prefill = sum(seq.is_prompt for seq in execute_model_req.seq_group_metadata_list)
         all_tokens, all_probs, spec_logprobs = self._contract_batch(
             contracted_bs=len(execute_model_req.seq_group_metadata_list),
             target_sampler_output=target_sampler_output,
@@ -94,6 +101,7 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             non_spec_indices=non_spec_indices,
             spec_indices=spec_indices,
             k=execute_model_req.num_lookahead_slots,
+            num_prefill=num_prefill,
         )
 
         return SpeculativeScores(
@@ -108,7 +116,7 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         seq_group_metadata_list: List[SequenceGroupMetadata],
         proposal_token_ids_list: List[List[TokenId]],
         proposal_lens_list: List[int],
-    ) -> Tuple[List[int], List[int], List[SequenceGroupMetadata], int]:
+    ) -> Tuple[List[int], List[int], List[int], List[SequenceGroupMetadata], int]:
         """Given the input sequences and potentially multiple corresponding
         proposal tokens, create a new batch where each sequence has a single
         query token.
@@ -126,6 +134,10 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             seq_group_metadata_list,
             proposal_lens_list,
             select_proposal_len_zero=True)
+        prefill_indices = [i for i, seq in enumerate(seq_group_metadata_list) if seq.is_prompt]
+        prefill_seqs = [seq_group_metadata_list[i] for i in prefill_indices]
+        non_spec_indices = [i for i in non_spec_indices if i not in prefill_indices]
+        non_spec_seqs = [seq_group_metadata_list[i] for i in non_spec_indices]
 
         target_seq_group_metadata_list = self._create_scoring_model_input(
             seq_group_metadata_list=spec_seqs,
@@ -137,16 +149,16 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         )
 
         num_scoring_tokens = len(target_seq_group_metadata_list)
-        target_seq_group_metadata_list.extend(non_spec_seqs)
+        target_seq_group_metadata_list.extend(non_spec_seqs + prefill_seqs)
 
-        return (spec_indices, non_spec_indices, target_seq_group_metadata_list,
+        return (prefill_indices, spec_indices, non_spec_indices, target_seq_group_metadata_list,
                 num_scoring_tokens)
 
     def _contract_batch(
             self, contracted_bs: int, target_sampler_output: SamplerOutput,
             proposals: SpeculativeProposals, num_scoring_tokens: int,
             non_spec_indices: List[int], spec_indices: List[int],
-            k: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+            k: int, num_prefill: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Contract the expanded batch back into its original size.
         This maps the scores of speculative tokens back to their original
         sequences.
@@ -154,6 +166,7 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         contracted_bs is the original batch size, and the batch size that the
         target_sampler_output will be contracted to.
         """
+        print(contracted_bs, "output", target_sampler_output.outputs)
         (target_token_ids, target_probs, target_logprobs,
          non_spec_target_token_ids, non_spec_target_probs,
          non_spec_target_logprobs) = self._split_scoring_output(
@@ -167,7 +180,9 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         # equal to the total expanded batch size minus the number of samples for
         # non-speculative sequences.
         non_spec_expanded_bs, _ = non_spec_target_token_ids.shape
+        non_spec_expanded_bs += num_prefill
         spec_expanded_bs = expanded_batch_size - non_spec_expanded_bs
+        print(expanded_batch_size, k, non_spec_expanded_bs, spec_expanded_bs)
 
         target_token_ids = target_token_ids.reshape(spec_expanded_bs, k + 1)
         target_probs = target_probs.reshape(*target_token_ids.shape,
@@ -238,9 +253,9 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         This function creates K+1 target SequenceGroupMetadata to take
         advantage of the bonus token.
         """
-        assert not input_seq_group_metadata.is_prompt, (
-            "Speculating on "
-            "prompts not yet supported")
+        #assert not input_seq_group_metadata.is_prompt, (
+        #    "Speculating on "
+        #    "prompts not yet supported")
         assert len(input_seq_group_metadata.seq_data) == 1, (
             "Beam search "
             "not supported in speculative decoding")

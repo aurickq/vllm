@@ -528,6 +528,10 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
         # Generate proposals using draft worker.
         proposals = self.proposer_worker.get_spec_proposals(
             execute_model_req, self._seq_with_bonus_token_in_last_step)
+        for i, req in enumerate(execute_model_req.seq_group_metadata_list):
+            if req.is_prompt:
+                proposals.proposal_token_ids[i] = -1
+                proposals.proposal_lens[i] = 0
 
         if not self._allow_zero_draft_token_step and proposals.no_proposals:
             #TODO: Fix it #5814
@@ -719,7 +723,7 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
                                                 accepted_token_ids_by_step)
         maybe_rejsample_metrics = (
             self._metrics.maybe_collect_rejsample_metrics(k))
-        if maybe_rejsample_metrics is not None:
+        if maybe_rejsample_metrics is not None and sampler_output_list:
             sampler_output_list[
                 0].spec_decode_worker_metrics = maybe_rejsample_metrics
         return sampler_output_list
