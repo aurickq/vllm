@@ -73,10 +73,6 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             if -1 not in proposals
         ]
 
-        print("ITERATION")
-        for seq in execute_model_req.seq_group_metadata_list:
-            print(seq.seq_data)
-
         (prefill_indices, spec_indices, non_spec_indices, target_seq_group_metadata_list,
          num_scoring_tokens) = self._expand_batch(
              seq_group_metadata_list=execute_model_req.seq_group_metadata_list,
@@ -107,7 +103,6 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             logprobs=spec_logprobs,
             hidden_states=target_sampler_output.hidden_states,
         )
-        print(scores.token_ids)
         return scores
 
     def _expand_batch(

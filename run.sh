@@ -1,4 +1,4 @@
-PYTHONPATH=/home/cortex/vllm_bench python -m vllm_bench.benchmark \
+CUDA_LAUNCH_BLOCKING=1 PYTHONPATH=/home/cortex/vllm_bench python -m vllm_bench.benchmark \
     --trace /home/cortex/trace-single.jsonl \
     --result-filename /home/cortex/result-0.json \
     --save-result \

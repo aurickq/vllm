@@ -542,6 +542,8 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             execute_model_req,
             proposals,
         )
+
+        #seqs = [seq for seq in execute_model_req.seq_group_metadata_list if seq.do_sample]
         accepted_token_ids, target_logprobs = self._verify_tokens(
             execute_model_req.seq_group_metadata_list, proposal_scores,
             proposals, execute_model_req.num_lookahead_slots)
@@ -580,6 +582,8 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
             seq_group_metadata_list,
             proposal_lens_list,
             select_proposal_len_zero=True)
+        #prefill_indices = [i for i, seq in enumerate(seq_group_metadata_list) if seq.is_prompt and not seq.do_sample]
+        #non_spec_indices = [i for i in non_spec_indices if i not in prefill_indices]
         original_indices = spec_indices + non_spec_indices
 
         # Get probabilities of target model, excluding bonus token.
@@ -718,9 +722,9 @@ class SpecDecodeWorker(LoraNotSupportedWorkerBase):
 
         # Populate the data structures needed to keep track of sequences with
         # bonus tokens.
-        self._track_sequences_with_bonus_tokens(seq_ids,
-                                                request_ids_seq_ids_mapping,
-                                                accepted_token_ids_by_step)
+        #self._track_sequences_with_bonus_tokens(seq_ids,
+        #                                        request_ids_seq_ids_mapping,
+        #                                        accepted_token_ids_by_step)
         maybe_rejsample_metrics = (
             self._metrics.maybe_collect_rejsample_metrics(k))
         if maybe_rejsample_metrics is not None and sampler_output_list:
