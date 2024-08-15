@@ -120,18 +120,21 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         # proposal len. This adds some complexity (splitting the batch into spec
         # and non spec sequences) and should be removed in the future. It can be
         # done by supporting per-sequence proposal lens.
-        spec_seqs, spec_indices = split_batch_by_proposal_len(
-            seq_group_metadata_list,
-            proposal_lens_list,
-            select_proposal_len_zero=False)
-        non_spec_seqs, non_spec_indices = split_batch_by_proposal_len(
-            seq_group_metadata_list,
-            proposal_lens_list,
-            select_proposal_len_zero=True)
-        prefill_indices = [i for i, seq in enumerate(seq_group_metadata_list) if seq.is_prompt and not seq.do_sample]
+        prefill_indices = []
+        non_spec_indices = []
+        spec_indices = []
+        for i, (seq, proposal_len) in enumerate(zip(seq_group_metadata_list, proposal_lens_list)):
+            if seq.is_prompt and not seq.do_sample:
+                prefill_indices.append(i)
+            elif seq.is_prompt:
+                non_spec_indices.insert(0, i)
+            elif proposal_len == 0:
+                non_spec_indices.append(i)
+            else:
+                spec_indices.append(i)
         prefill_seqs = [seq_group_metadata_list[i] for i in prefill_indices]
-        non_spec_indices = [i for i in non_spec_indices if i not in prefill_indices]
         non_spec_seqs = [seq_group_metadata_list[i] for i in non_spec_indices]
+        spec_seqs = [seq_group_metadata_list[i] for i in spec_indices]
 
         target_seq_group_metadata_list = self._create_scoring_model_input(
             seq_group_metadata_list=spec_seqs,
@@ -143,7 +146,7 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         )
 
         num_scoring_tokens = len(target_seq_group_metadata_list)
-        target_seq_group_metadata_list.extend(non_spec_seqs + prefill_seqs)
+        target_seq_group_metadata_list = prefill_seqs + non_spec_seqs + target_seq_group_metadata_list
 
         return (prefill_indices, spec_indices, non_spec_indices, target_seq_group_metadata_list,
                 num_scoring_tokens)
@@ -346,16 +349,16 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         # First samples are from speculative scoring, latter samples are non-
         # speculative samples.
         split_sizes = [
+            sampler_output.sampled_token_ids.numel() - num_scoring_tokens,
             num_scoring_tokens,
-            sampler_output.sampled_token_ids.numel() - num_scoring_tokens
         ]
-        (spec_probs, non_spec_probs
+        (non_spec_probs, spec_probs
          ) = sampler_output.sampled_token_probs.split(split_sizes)
-        (spec_sampled_tokens, non_spec_sampled_tokens
+        (non_spec_sampled_tokens, spec_sampled_tokens
          ) = sampler_output.sampled_token_ids.flatten().split(split_sizes)
         (
-            spec_logprobs,
             non_spec_logprobs,
+            spec_logprobs,
         ) = sampler_output.logprobs.split(split_sizes)
 
         # Convert scores to tensors.
