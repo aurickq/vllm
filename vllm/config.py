@@ -1013,6 +1013,10 @@ class SpeculativeConfig:
             draft_model_config = target_model_config
             draft_parallel_config = target_parallel_config
         else:
+            if enable_chunked_prefill:
+                raise ValueError(
+                    "Speculative decoding and chunked prefill are currently "
+                    f"mutually exclusive ({enable_chunked_prefill=}).")
             ngram_prompt_lookup_max = 0
             ngram_prompt_lookup_min = 0
             draft_model_config = ModelConfig(
