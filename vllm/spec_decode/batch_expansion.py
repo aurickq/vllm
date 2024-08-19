@@ -97,13 +97,12 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
             prefill_indices=prefill_indices,
         )
 
-        scores = SpeculativeScores(
+        return SpeculativeScores(
             probs=all_probs,
             token_ids=all_tokens,
             logprobs=spec_logprobs,
             hidden_states=target_sampler_output.hidden_states,
         )
-        return scores
 
     def _expand_batch(
         self,
@@ -249,9 +248,6 @@ class BatchExpansionTop1Scorer(SpeculativeScorer):
         This function creates K+1 target SequenceGroupMetadata to take
         advantage of the bonus token.
         """
-        #assert not input_seq_group_metadata.is_prompt, (
-        #    "Speculating on "
-        #    "prompts not yet supported")
         assert len(input_seq_group_metadata.seq_data) == 1, (
             "Beam search "
             "not supported in speculative decoding")
