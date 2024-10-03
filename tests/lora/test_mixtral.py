@@ -41,7 +41,8 @@ def test_mixtral_lora(mixtral_lora_files, tp_size):
                    max_num_seqs=16,
                    max_loras=4,
                    distributed_executor_backend="ray",
-                   tensor_parallel_size=tp_size)
+                   tensor_parallel_size=tp_size,
+                   enable_chunked_prefill=True)
 
     expected_lora_output = [
         "give_opinion(name[SpellForce 3], release_year[2017], developer[Grimlore Games], rating[poor])",  # noqa: E501
