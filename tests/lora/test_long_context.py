@@ -116,8 +116,7 @@ def lora_llm(long_context_infos):
                    max_num_batched_tokens=4096 * 8,
                    tensor_parallel_size=4,
                    distributed_executor_backend="mp",
-                   enable_chunked_prefill=True,
-                   disable_async_output_proc=True)
+                   enable_chunked_prefill=True)
     yield llm
     del llm
 
