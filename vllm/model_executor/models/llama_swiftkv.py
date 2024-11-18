@@ -27,7 +27,7 @@ import torch
 from torch import nn
 
 from vllm.attention import Attention, AttentionMetadata
-from vllm.config import CacheConfig, LoRAConfig
+from vllm.config import CacheConfig, VllmConfig
 from vllm.distributed import (divide, get_tensor_model_parallel_rank,
                               get_tensor_model_parallel_world_size)
 from vllm.model_executor.layers.layernorm import RMSNorm
@@ -47,11 +47,10 @@ from vllm.model_executor.model_loader.weight_utils import (
     default_weight_loader, kv_cache_scales_loader, maybe_remap_kv_scale_name)
 from vllm.model_executor.models.llama import LlamaDecoderLayer, LlamaMLP
 from vllm.model_executor.models.utils import (
-    AutoWeightsLoader, is_pp_missing_parameter)
+    AutoWeightsLoader, is_pp_missing_parameter, maybe_prefix)
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.sequence import IntermediateTensors
 from vllm.transformers_utils.configs import LlamaSwiftKVConfig
-from vllm.utils import is_hip
 
 
 class LlamaSwiftKVAttention(nn.Module):
@@ -241,15 +240,14 @@ class LlamaSwiftKVDecoderLayer(nn.Module):
 
 class LlamaSwiftKVModel(nn.Module):
 
-    def __init__(
-        self,
-        config: LlamaSwiftKVConfig,
-        cache_config: Optional[CacheConfig] = None,
-        quant_config: Optional[QuantizationConfig] = None,
-        lora_config: Optional[LoRAConfig] = None,
-        prefix: str = "",
-    ) -> None:
+    def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
+
+        config = vllm_config.model_config.hf_config
+        cache_config = vllm_config.cache_config
+        quant_config = vllm_config.quant_config
+        lora_config = vllm_config.lora_config
+
         self.config = config
         self.padding_idx = config.pad_token_id
         lora_vocab = (lora_config.lora_extra_vocab_size *
@@ -474,7 +472,7 @@ class LlamaSwiftKVModel(nn.Module):
             if not isinstance(self.layers[layer_idx], nn.Identity):
                 layer_self_attn = self.layers[layer_idx].self_attn
 
-            if is_hip():
+            if current_platform.is_rocm():
                 # The scaling factor convention we are assuming is
                 # quantized_value * scaling_factor ~= true_value
                 # which is consistent with the practice of setting
@@ -524,23 +522,19 @@ class LlamaSwiftKVForCausalLM(nn.Module):
         "up_proj": ("gate_up_proj", 1),
     }
 
-    def __init__(
-        self,
-        config: LlamaSwiftKVConfig,
-        cache_config: Optional[CacheConfig] = None,
-        quant_config: Optional[QuantizationConfig] = None,
-        lora_config: Optional[LoRAConfig] = None,
-    ) -> None:
+    def __init__(self, *, vllm_config: VllmConfig, prefix: str = ""):
         super().__init__()
-
+        config = vllm_config.model_config.hf_config
+        quant_config = vllm_config.quant_config
+        lora_config = vllm_config.lora_config
         self.config = config
         self.lora_config = lora_config
 
-        self.model = LlamaSwiftKVModel(config,
-                                cache_config,
-                                quant_config,
-                                lora_config=lora_config,
-                                prefix="model")
+        self.model = LlamaSwiftKVModel(
+            vllm_config=vllm_config,
+            prefix=maybe_prefix(prefix, "model"),
+        )
+
         self.unpadded_vocab_size = config.vocab_size
         if lora_config:
             self.unpadded_vocab_size += lora_config.lora_extra_vocab_size
