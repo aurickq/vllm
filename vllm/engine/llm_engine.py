@@ -1145,8 +1145,10 @@ class LLMEngine:
             output: List[SequenceGroupOutput]
             if has_multiple_outputs:
                 output = outputs_by_sequence_group[i]
-            else:
+            elif i < len(outputs_by_sequence_group[0]):
                 output = [outputs_by_sequence_group[0][i]]
+            else:
+                output = []
 
             if not is_async:
                 if self.scheduler_config.is_multi_step:
@@ -1174,13 +1176,14 @@ class LLMEngine:
                             seq_group.metrics.model_execute_time = (
                                 o.model_execute_time)
 
-            if self.model_config.task == "embedding":
-                self._process_sequence_group_outputs(seq_group, output)
-            else:
-                self.output_processor.process_prompt_logprob(seq_group, output)
-                if seq_group_meta.do_sample:
-                    self.output_processor.process_outputs(
-                        seq_group, output, is_async)
+            if output:
+                if self.model_config.task == "embedding":
+                    self._process_sequence_group_outputs(seq_group, output)
+                else:
+                    self.output_processor.process_prompt_logprob(seq_group, output)
+                    if seq_group_meta.do_sample:
+                        self.output_processor.process_outputs(
+                            seq_group, output, is_async)
 
             if seq_group.is_finished():
                 finished_now.append(i)
