@@ -30,6 +30,7 @@ class MultiprocessingGPUExecutor(DistributedGPUExecutor):
         # Create the parallel GPU workers.
         world_size = self.parallel_config.world_size
         tensor_parallel_size = self.parallel_config.tensor_parallel_size
+        sequence_parallel_size = self.parallel_config.sequence_parallel_size
 
         # Set multiprocessing envs that are common to V0 and V1
         set_multiprocessing_worker_envs(self.parallel_config)
@@ -65,7 +66,7 @@ class MultiprocessingGPUExecutor(DistributedGPUExecutor):
                             distributed_init_method=distributed_init_method,
                         )))
                 self.workers.append(worker)
-                if rank % tensor_parallel_size == 0:
+                if rank % (tensor_parallel_size * sequence_parallel_size) == 0:
                     self.tp_driver_workers.append(worker)
                 else:
                     self.non_driver_workers.append(worker)

@@ -49,7 +49,7 @@ class GPUExecutor(ExecutorBase):
             rank=rank,
             distributed_init_method=distributed_init_method,
             is_driver_worker=(not self.parallel_config)
-            or (rank % self.parallel_config.tensor_parallel_size == 0),
+            or (rank % (self.parallel_config.tensor_parallel_size * self.parallel_config.sequence_parallel_size) == 0),
         )
 
     def _create_worker(self,

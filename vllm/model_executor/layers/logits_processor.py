@@ -12,6 +12,7 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding)
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.platforms import current_platform
+from vllm.distributed import get_sp_tp_group
 
 
 class LogitsProcessor(nn.Module):
@@ -63,6 +64,11 @@ class LogitsProcessor(nn.Module):
 
             # Get the logits for the next tokens.
             logits = self._get_logits(hidden_states, lm_head, embedding_bias)
+        
+        # this is necessary for Ulysses
+        if not get_sp_tp_group().is_first_rank:
+            logits = None
+
         if logits is not None:
             if self.soft_cap is not None:
                 logits = logits / self.soft_cap

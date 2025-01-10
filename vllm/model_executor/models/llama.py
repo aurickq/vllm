@@ -28,8 +28,9 @@ from transformers import LlamaConfig
 
 from vllm.attention import Attention, AttentionMetadata
 from vllm.compilation.decorators import support_torch_compile
+# from vllm.config import CacheConfig, LoRAConfig
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import (get_pp_group, get_tensor_model_parallel_rank,
+from vllm.distributed import (get_world_group, get_tp_group, get_sp_group, get_pp_group, get_tensor_model_parallel_rank,
                               get_tensor_model_parallel_world_size)
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
@@ -55,7 +56,6 @@ from .utils import (AutoWeightsLoader, PPMissingLayer, extract_layer_index,
                     is_pp_missing_parameter,
                     make_empty_intermediate_tensors_factory, make_layers,
                     maybe_prefix)
-
 
 class LlamaMLP(nn.Module):
 
@@ -114,10 +114,11 @@ class LlamaAttention(nn.Module):
         super().__init__()
         layer_idx = extract_layer_index(prefix)
         self.hidden_size = hidden_size
-        tp_size = get_tensor_model_parallel_world_size()
+        tp_size = get_tp_group().world_size
+        # sp_size = get_sp_group().world_size
         self.total_num_heads = num_heads
         assert self.total_num_heads % tp_size == 0
-        self.num_heads = self.total_num_heads // tp_size
+        self.num_heads = num_heads // tp_size
         self.total_num_kv_heads = num_kv_heads
         if self.total_num_kv_heads >= tp_size:
             # Number of KV heads is greater than TP size, so we partition
@@ -182,10 +183,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads,
+            self.num_heads//get_sp_group().world_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads,
+            num_kv_heads=self.num_kv_heads//get_sp_group().world_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
@@ -196,14 +197,57 @@ class LlamaAttention(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
+        N_ranks: List[int],
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
-        qkv, _ = self.qkv_proj(hidden_states)
+
+        # variables for Ulysses attention
+        SP = get_sp_group().world_size
+        TP = get_tp_group().world_size
+        N = sum(N_ranks) 
+        N_ulysses = N_ranks[get_sp_group().rank_in_group]
+        d = self.total_num_heads * self.head_dim
+        d_kv = self.total_num_kv_heads * self.head_dim
+        assert N_ulysses == hidden_states.shape[0]
+        assert d == hidden_states.shape[1]
+        assert d//TP == self.q_size
+        assert d_kv//TP == self.kv_size
+
+        # qkv projection
+        if hidden_states.shape[0] > 0:
+            qkv, _ = self.qkv_proj(hidden_states)
+        else:
+            qkv = torch.empty((0, self.q_size + 2*self.kv_size), dtype=hidden_states.dtype, device=hidden_states.device)
+
+        # pack send buffer
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-        q, k = self.rotary_emb(positions, q, k)
-        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
-        output, _ = self.o_proj(attn_output)
+        qkv = torch.cat((q.view((N_ulysses, SP, self.q_size//SP)),
+                         k.view((N_ulysses, SP, self.kv_size//SP)),
+                         v.view((N_ulysses, SP, self.kv_size//SP))), dim=-1).transpose(0, 1).contiguous()
+        # communication
+        qkv_ = torch.empty((N, (self.q_size+2*self.kv_size)//SP), dtype=qkv.dtype, device=qkv.device)
+        torch.distributed.all_to_all_single(qkv_, qkv, output_split_sizes=N_ranks, group=get_sp_group().device_group)
+        # unpack receive buffer
+        q_, k_, v_ = qkv_.split([self.q_size//SP, self.kv_size//SP, self.kv_size//SP], dim=-1)
+
+        # positional embeddings
+        q_, k_ = self.rotary_emb(positions, q_, k_)
+
+        # attention 
+        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
+
+        # communication
+        c = torch.empty((SP, N_ulysses, self.q_size//SP), dtype=hidden_states.dtype, device=hidden_states.device)
+        torch.distributed.all_to_all_single(c, attn_output, input_split_sizes=N_ranks, group=get_sp_group().device_group)
+        c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
+
+        # output projection
+        if hidden_states.shape[0] > 0:
+            output, _ = self.o_proj(c)
+        else:
+            output = hidden_states
+
         return output
 
 
@@ -261,6 +305,7 @@ class LlamaDecoderLayer(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
+        N_ranks: List[int],
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -268,19 +313,23 @@ class LlamaDecoderLayer(nn.Module):
         # Self Attention
         if residual is None:
             residual = hidden_states
-            hidden_states = self.input_layernorm(hidden_states)
+            if hidden_states.shape[0] > 0:
+                hidden_states = self.input_layernorm(hidden_states)
         else:
-            hidden_states, residual = self.input_layernorm(
-                hidden_states, residual)
+            if hidden_states.shape[0] > 0:
+                hidden_states, residual = self.input_layernorm(
+                    hidden_states, residual)
         hidden_states = self.self_attn(positions=positions,
                                        hidden_states=hidden_states,
+                                       N_ranks=N_ranks,
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
-
         # Fully Connected
-        hidden_states, residual = self.post_attention_layernorm(
-            hidden_states, residual)
-        hidden_states = self.mlp(hidden_states)
+        if hidden_states.shape[0] > 0:
+            hidden_states, residual = self.post_attention_layernorm(
+                hidden_states, residual)
+            hidden_states = self.mlp(hidden_states)
+
         return hidden_states, residual
 
 
@@ -355,9 +404,19 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
+        N = len(input_ids)
+        SP = get_sp_group().world_size
+        N_ranks = [N//SP]*SP
+        for i in range(N % SP):
+            N_ranks[i] += 1
+        SP_rank = get_sp_group().rank_in_group
+
+        # narrow hidden_states
+        hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]), N_ranks[SP_rank]).clone()
+
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
-            hidden_states, residual = layer(positions, hidden_states,
+            hidden_states, residual = layer(positions, hidden_states, N_ranks,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
 
@@ -367,7 +426,14 @@ class LlamaModel(nn.Module):
                 "residual": residual
             })
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        if hidden_states.shape[0] > 0:
+            hidden_states, _ = self.norm(hidden_states, residual)
+
+        # all-gather hidden_states
+        hidden_states_list = [torch.empty((N_ranks[i], hidden_states.shape[1]), dtype=hidden_states.dtype, device=hidden_states.device) for i in range(SP)]
+        torch.distributed.all_gather(hidden_states_list, hidden_states, group=get_sp_group().device_group)
+        hidden_states = torch.cat(hidden_states_list)
+
         return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
