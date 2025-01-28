@@ -805,19 +805,19 @@ class ModelConfig:
         # case where the number of KV heads is smaller than the tensor
         # parallel size so each GPU has at least one KV head.
         return max(1,
-                   total_num_kv_heads // parallel_config.tensor_parallel_size)
+                   total_num_kv_heads // (parallel_config.tensor_parallel_size * parallel_config.sequence_parallel_size))
 
     def get_num_attention_heads(self,
                                 parallel_config: "ParallelConfig") -> int:
         num_heads = getattr(self.hf_text_config, "num_attention_heads", 0)
-        return num_heads // parallel_config.tensor_parallel_size
+        return num_heads // (parallel_config.tensor_parallel_size * parallel_config.sequence_parallel_size)
 
     def get_layers_start_end_indices(
             self, parallel_config: "ParallelConfig") -> Tuple[int, int]:
         from vllm.distributed.utils import get_pp_indices
         total_num_hidden_layers = getattr(self.hf_text_config,
                                           "num_hidden_layers", 0)
-        pp_rank = parallel_config.rank // parallel_config.tensor_parallel_size
+        pp_rank = parallel_config.rank // (parallel_config.tensor_parallel_size * parallel_config.sequence_parallel_size)
         pp_size = parallel_config.pipeline_parallel_size
         start, end = get_pp_indices(total_num_hidden_layers, pp_rank, pp_size)
         return start, end
@@ -1232,6 +1232,7 @@ class ParallelConfig:
 
     pipeline_parallel_size: int = 1  # Number of pipeline parallel groups.
     tensor_parallel_size: int = 1  # Number of tensor parallel groups.
+    sequence_parallel_size: int = 1 # Number of sequence parallel groups.
 
     # Maximum number of multiple batches
     # when load model sequentially. To avoid RAM OOM when using tensor
@@ -1280,11 +1281,13 @@ class ParallelConfig:
         factors: List[Any] = []
         factors.append(self.pipeline_parallel_size)
         factors.append(self.tensor_parallel_size)
+        factors.append(self.sequence_parallel_size)
         return hashlib.sha256(str(factors).encode()).hexdigest()
 
     def __post_init__(self) -> None:
         self.world_size = self.pipeline_parallel_size * \
-            self.tensor_parallel_size
+            self.tensor_parallel_size * \
+            self.sequence_parallel_size
 
         ray_only_devices = ["tpu"]
         from vllm.platforms import current_platform
