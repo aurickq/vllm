@@ -100,14 +100,14 @@ class MultiprocExecutor(Executor):
         start_time = time.monotonic()
         kwargs = kwargs or {}
 
-        import torch
-        torch.cuda.synchronize()
-        torch.distributed.barrier()
-        for i in range(self.world_size):
-            if i == self.rank:
-                print(f"rank {i} before rpc call")
-            torch.cuda.synchronize()
-            torch.distributed.barrier()
+        # import torch
+        # torch.cuda.synchronize()
+        # torch.distributed.barrier()
+        # for i in range(self.world_size):
+        #     if i == self.rank:
+        #         print(f"rank {i} before rpc call")
+        #     torch.cuda.synchronize()
+        #     torch.distributed.barrier()
 
         # NOTE: If the args are heterogeneous, then we pack them into a list,
         # and unpack them in the method of every worker, because every worker
