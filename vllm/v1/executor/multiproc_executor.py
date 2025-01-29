@@ -108,7 +108,7 @@ class MultiprocExecutor(Executor):
         #         print(f"rank {i} before rpc call")
         #     torch.cuda.synchronize()
         #     torch.distributed.barrier()
-        exit()
+        # exit()
 
         # NOTE: If the args are heterogeneous, then we pack them into a list,
         # and unpack them in the method of every worker, because every worker
