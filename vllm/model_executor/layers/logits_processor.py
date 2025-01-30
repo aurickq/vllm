@@ -7,9 +7,9 @@ import torch.nn as nn
 
 import vllm.envs as envs
 from vllm.config import get_current_vllm_config
-from vllm.distributed import (  # from vllm.distributed import (
-    get_sp_tp_group, tensor_model_parallel_all_gather,
-    tensor_model_parallel_gather)
+from vllm.distributed import (get_sp_tp_group,
+                              tensor_model_parallel_all_gather,
+                              tensor_model_parallel_gather)
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding)
 from vllm.model_executor.sampling_metadata import SamplingMetadata
