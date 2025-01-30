@@ -649,7 +649,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         for i in range(torch.distributed.get_world_size()):
             if i == torch.distributed.get_rank():
                 print(f"rank {torch.distributed.get_rank()} compute_logits \
-                      hidden_states shape: {hidden_states.shape}")
+                      hidden_states: {hidden_states.shape}")
             torch.cuda.synchronize()
             torch.distributed.barrier()
 
@@ -661,7 +661,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         for i in range(torch.distributed.get_world_size()):
             if i == torch.distributed.get_rank():
                 print(f"rank {torch.distributed.get_rank()} compute_logits \
-                      logits shape: {logits.shape}")
+                      logits: {logits.shape if logits is not None else None}")
             torch.cuda.synchronize()
             torch.distributed.barrier()
 
