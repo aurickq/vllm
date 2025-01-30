@@ -69,7 +69,8 @@ class LogitsProcessor(nn.Module):
             logits = self._get_logits(hidden_states, lm_head, embedding_bias)
 
         # this was necessary for Ulysses but not anymore as of vLLM v0.7.0.
-        if not get_sp_tp_group().is_first_rank:
+        if envs.VLLM_USE_V1 == 0 and not get_sp_tp_group().is_first_rank:
+            # Only the first rank should return logits.
             logits = None
 
         if logits is not None:
