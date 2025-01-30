@@ -992,6 +992,12 @@ class GPUModelRunner:
             torch.cuda.synchronize()
             torch.distributed.barrier()
         logits = self.model.compute_logits(hidden_states, None)
+        for i in range(torch.distributed.get_world_size()):
+            if i == torch.distributed.get_rank():
+                print(f"Rank {i} has finished the logits computation. \
+                      logits: {logits.shape}")
+            torch.cuda.synchronize()
+            torch.distributed.barrier()
         logits = logits[:self.max_num_tokens]
         # TODO(woosuk): Consider the memory usage of the sampler.
         torch.cuda.synchronize()
