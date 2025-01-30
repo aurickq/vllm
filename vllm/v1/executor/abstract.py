@@ -56,6 +56,7 @@ class Executor(ExecutorBase):
         self.collective_rpc("compile_or_warm_up_model")
 
     def determine_available_memory(self) -> int:  # in bytes
+        exit()
         output = self.collective_rpc("determine_available_memory")
         # Since we use a shared centralized controller, we take the minimum
         # memory size across all workers to make sure all the memory
