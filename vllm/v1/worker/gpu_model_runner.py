@@ -988,7 +988,7 @@ class GPUModelRunner:
         for i in range(torch.distributed.get_world_size()):
             if i == torch.distributed.get_rank():
                 print(f"Rank {i} has finished the dummy run. \
-                      hidden_states: {hidden_states}")
+                      hidden_states: {hidden_states.shape}")
             torch.cuda.synchronize()
             torch.distributed.barrier()
         logits = self.model.compute_logits(hidden_states, None)
