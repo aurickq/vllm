@@ -45,6 +45,8 @@ class Executor(ExecutorBase):
         else:
             raise ValueError("Unknown distributed executor backend: "
                              f"{distributed_executor_backend}")
+
+        print("distributed_executor_backend: ", distributed_executor_backend)
         return executor_class
 
     def initialize(self, kv_cache_config: KVCacheConfig) -> None:
