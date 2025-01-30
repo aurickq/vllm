@@ -30,8 +30,7 @@ from vllm.attention import Attention, AttentionMetadata
 from vllm.compilation.decorators import support_torch_compile
 # from vllm.config import CacheConfig, LoRAConfig
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import (get_world_group, get_tp_group, get_sp_group, get_pp_group, get_tensor_model_parallel_rank,
-                              get_tensor_model_parallel_world_size)
+from vllm.distributed import get_pp_group, get_sp_group, get_tp_group
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
@@ -53,6 +52,7 @@ from .utils import (AutoWeightsLoader, PPMissingLayer, extract_layer_index,
                     is_pp_missing_parameter,
                     make_empty_intermediate_tensors_factory, make_layers,
                     maybe_prefix)
+
 
 class LlamaMLP(nn.Module):
 
@@ -180,10 +180,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads//get_sp_group().world_size,
+            self.num_heads // get_sp_group().world_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads//get_sp_group().world_size,
+            num_kv_heads=self.num_kv_heads // get_sp_group().world_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
@@ -202,41 +202,56 @@ class LlamaAttention(nn.Module):
         # variables for Ulysses attention
         SP = get_sp_group().world_size
         TP = get_tp_group().world_size
-        N = sum(N_ranks) 
+        N = sum(N_ranks)
         N_ulysses = N_ranks[get_sp_group().rank_in_group]
         d = self.total_num_heads * self.head_dim
         d_kv = self.total_num_kv_heads * self.head_dim
         assert N_ulysses == hidden_states.shape[0]
         assert d == hidden_states.shape[1]
-        assert d//TP == self.q_size
-        assert d_kv//TP == self.kv_size
+        assert d // TP == self.q_size
+        assert d_kv // TP == self.kv_size
 
         # qkv projection
         if hidden_states.shape[0] > 0:
             qkv, _ = self.qkv_proj(hidden_states)
         else:
-            qkv = torch.empty((0, self.q_size + 2*self.kv_size), dtype=hidden_states.dtype, device=hidden_states.device)
+            qkv = torch.empty((0, self.q_size + 2 * self.kv_size),
+                              dtype=hidden_states.dtype,
+                              device=hidden_states.device)
 
         # pack send buffer
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-        qkv = torch.cat((q.view((N_ulysses, SP, self.q_size//SP)),
-                         k.view((N_ulysses, SP, self.kv_size//SP)),
-                         v.view((N_ulysses, SP, self.kv_size//SP))), dim=-1).transpose(0, 1).contiguous()
+        qkv = torch.cat((q.view((N_ulysses, SP, self.q_size // SP)),
+                         k.view((N_ulysses, SP, self.kv_size // SP)),
+                         v.view((N_ulysses, SP, self.kv_size // SP))),
+                        dim=-1).transpose(0, 1).contiguous()
         # communication
-        qkv_ = torch.empty((N, (self.q_size+2*self.kv_size)//SP), dtype=qkv.dtype, device=qkv.device)
-        torch.distributed.all_to_all_single(qkv_, qkv, output_split_sizes=N_ranks, group=get_sp_group().device_group)
+        qkv_ = torch.empty((N, (self.q_size + 2 * self.kv_size) // SP),
+                           dtype=qkv.dtype,
+                           device=qkv.device)
+        torch.distributed.all_to_all_single(qkv_,
+                                            qkv,
+                                            output_split_sizes=N_ranks,
+                                            group=get_sp_group().device_group)
         # unpack receive buffer
-        q_, k_, v_ = qkv_.split([self.q_size//SP, self.kv_size//SP, self.kv_size//SP], dim=-1)
+        q_, k_, v_ = qkv_.split(
+            [self.q_size // SP, self.kv_size // SP, self.kv_size // SP],
+            dim=-1)
 
         # positional embeddings
         q_, k_ = self.rotary_emb(positions, q_, k_)
 
-        # attention 
+        # attention
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
 
         # communication
-        c = torch.empty((SP, N_ulysses, self.q_size//SP), dtype=hidden_states.dtype, device=hidden_states.device)
-        torch.distributed.all_to_all_single(c, attn_output, input_split_sizes=N_ranks, group=get_sp_group().device_group)
+        c = torch.empty((SP, N_ulysses, self.q_size // SP),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device)
+        torch.distributed.all_to_all_single(c,
+                                            attn_output,
+                                            input_split_sizes=N_ranks,
+                                            group=get_sp_group().device_group)
         c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
 
         # output projection
@@ -408,15 +423,19 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
+        print(f"rank {torch.distributed.get_rank()} \
+              hidden_states.shape: {hidden_states.shape}")
+
         N = len(input_ids)
         SP = get_sp_group().world_size
-        N_ranks = [N//SP]*SP
+        N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
         SP_rank = get_sp_group().rank_in_group
 
         # narrow hidden_states
-        hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]), N_ranks[SP_rank]).clone()
+        hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
+                                     N_ranks[SP_rank]).clone()
 
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
@@ -434,8 +453,14 @@ class LlamaModel(nn.Module):
             hidden_states, _ = self.norm(hidden_states, residual)
 
         # all-gather hidden_states
-        hidden_states_list = [torch.empty((N_ranks[i], hidden_states.shape[1]), dtype=hidden_states.dtype, device=hidden_states.device) for i in range(SP)]
-        torch.distributed.all_gather(hidden_states_list, hidden_states, group=get_sp_group().device_group)
+        hidden_states_list = [
+            torch.empty((N_ranks[i], hidden_states.shape[1]),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device) for i in range(SP)
+        ]
+        torch.distributed.all_gather(hidden_states_list,
+                                     hidden_states,
+                                     group=get_sp_group().device_group)
         hidden_states = torch.cat(hidden_states_list)
 
         return hidden_states
