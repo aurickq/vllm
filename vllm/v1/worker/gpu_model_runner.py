@@ -983,6 +983,14 @@ class GPUModelRunner:
 
         # Trigger compilation for general shape.
         hidden_states = self._dummy_run(self.max_num_tokens, dummy_kv_caches)
+        torch.cuda.synchronize()
+        torch.distributed.barrier()
+        for i in range(torch.distributed.get_world_size()):
+            if i == torch.distributed.get_rank():
+                print(f"Rank {i} has finished the dummy run. \
+                      hidden_states: {hidden_states}")
+            torch.cuda.synchronize()
+            torch.distributed.barrier()
         logits = self.model.compute_logits(hidden_states, None)
         logits = logits[:self.max_num_tokens]
         # TODO(woosuk): Consider the memory usage of the sampler.
