@@ -995,7 +995,7 @@ class GPUModelRunner:
         for i in range(torch.distributed.get_world_size()):
             if i == torch.distributed.get_rank():
                 print(f"Rank {i} has finished the logits computation. \
-                      logits: {logits.shape}")
+                      logits: {logits.shape if logits is not None else None}")
             torch.cuda.synchronize()
             torch.distributed.barrier()
         logits = logits[:self.max_num_tokens]
