@@ -7,9 +7,9 @@ import torch.nn as nn
 
 import vllm.envs as envs
 from vllm.config import get_current_vllm_config
-# from vllm.distributed import (get_sp_tp_group,
-from vllm.distributed import (tensor_model_parallel_all_gather,
-                              tensor_model_parallel_gather)
+from vllm.distributed import (  # from vllm.distributed import (
+    get_sp_tp_group, tensor_model_parallel_all_gather,
+    tensor_model_parallel_gather)
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     VocabParallelEmbedding)
 from vllm.model_executor.sampling_metadata import SamplingMetadata
@@ -69,8 +69,8 @@ class LogitsProcessor(nn.Module):
             logits = self._get_logits(hidden_states, lm_head, embedding_bias)
 
         # this was necessary for Ulysses but not anymore as of vLLM v0.7.0.
-        # if not get_sp_tp_group().is_first_rank:
-        #     logits = None
+        if not get_sp_tp_group().is_first_rank:
+            logits = None
 
         if logits is not None:
             if self.soft_cap is not None:
