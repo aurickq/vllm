@@ -68,7 +68,7 @@ class LogitsProcessor(nn.Module):
             # Get the logits for the next tokens.
             logits = self._get_logits(hidden_states, lm_head, embedding_bias)
 
-        # this is necessary for Ulysses
+        # this was necessary for Ulysses but not anymore as of vLLM v0.7.0.
         # if not get_sp_tp_group().is_first_rank:
         #     logits = None
 

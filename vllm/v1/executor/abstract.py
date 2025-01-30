@@ -45,9 +45,6 @@ class Executor(ExecutorBase):
         else:
             raise ValueError("Unknown distributed executor backend: "
                              f"{distributed_executor_backend}")
-
-        print("test distributed_executor_backend: ",
-              distributed_executor_backend)
         return executor_class
 
     def initialize(self, kv_cache_config: KVCacheConfig) -> None:
@@ -59,9 +56,6 @@ class Executor(ExecutorBase):
         self.collective_rpc("compile_or_warm_up_model")
 
     def determine_available_memory(self) -> int:  # in bytes
-
-        print("test determine_available_memory")
-
         output = self.collective_rpc("determine_available_memory")
         # Since we use a shared centralized controller, we take the minimum
         # memory size across all workers to make sure all the memory

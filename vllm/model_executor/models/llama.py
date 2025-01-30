@@ -434,15 +434,6 @@ class LlamaModel(nn.Module):
         hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
                                      N_ranks[SP_rank]).clone()
 
-        torch.cuda.synchronize()
-        torch.distributed.barrier()
-        for i in range(torch.distributed.get_world_size()):
-            if i == torch.distributed.get_rank():
-                print(f"rank {torch.distributed.get_rank()} \
-                      hidden_states shape: {hidden_states.shape}")
-            torch.cuda.synchronize()
-            torch.distributed.barrier()
-
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(positions, hidden_states, N_ranks,
