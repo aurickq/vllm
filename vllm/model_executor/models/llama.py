@@ -622,7 +622,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_ranks = [N // SP] * SP
         N_start = sum(N_ranks[:SP_rank])
         N_ulysses = N_ranks[SP_rank]
-        input_ids = input_ids[N_start:N_start + N_ulysses]
+        input_ids = input_ids[N_start:N_start + N_ulysses].clone()
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
