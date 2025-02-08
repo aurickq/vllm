@@ -212,12 +212,7 @@ class LlamaAttention(nn.Module):
         assert d_kv // TP == self.kv_size
 
         # qkv projection
-        if hidden_states.shape[0] > 0:
-            qkv, _ = self.qkv_proj(hidden_states)
-        else:
-            qkv = torch.empty((0, self.q_size + 2 * self.kv_size),
-                              dtype=hidden_states.dtype,
-                              device=hidden_states.device)
+        qkv, _ = self.qkv_proj(hidden_states)
 
         # pack send buffer
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
@@ -255,10 +250,7 @@ class LlamaAttention(nn.Module):
         c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
 
         # output projection
-        if hidden_states.shape[0] > 0:
-            output, _ = self.o_proj(c)
-        else:
-            output = hidden_states
+        output, _ = self.o_proj(c)
 
         return output
 
@@ -331,22 +323,19 @@ class LlamaDecoderLayer(nn.Module):
         # Self Attention
         if residual is None:
             residual = hidden_states
-            if hidden_states.shape[0] > 0:
-                hidden_states = self.input_layernorm(hidden_states)
+            hidden_states = self.input_layernorm(hidden_states)
         else:
-            if hidden_states.shape[0] > 0:
-                hidden_states, residual = self.input_layernorm(
-                    hidden_states, residual)
+            hidden_states, residual = self.input_layernorm(
+                hidden_states, residual)
         hidden_states = self.self_attn(positions=positions,
                                        hidden_states=hidden_states,
                                        N_ranks=N_ranks,
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
         # Fully Connected
-        if hidden_states.shape[0] > 0:
-            hidden_states, residual = self.post_attention_layernorm(
-                hidden_states, residual)
-            hidden_states = self.mlp(hidden_states)
+        hidden_states, residual = self.post_attention_layernorm(
+            hidden_states, residual)
+        hidden_states = self.mlp(hidden_states)
 
         return hidden_states, residual
 
@@ -446,8 +435,7 @@ class LlamaModel(nn.Module):
                 "residual": residual
             })
 
-        if hidden_states.shape[0] > 0:
-            hidden_states, _ = self.norm(hidden_states, residual)
+        hidden_states, _ = self.norm(hidden_states, residual)
 
         # all-gather hidden_states
         hidden_states_list = [
