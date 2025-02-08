@@ -205,6 +205,8 @@ class LlamaAttention(nn.Module):
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        # positional embeddings
+        q, k = self.rotary_emb(positions, q, k)
 
         # pack send buffer
         qkv = torch.cat(
@@ -224,13 +226,10 @@ class LlamaAttention(nn.Module):
         qkv_ += qkv.sum()
         # unpack receive buffer
         q_, k_, v_ = qkv_.split([
-            d // self.sp_size
-            for d in [self.q_size, self.kv_size, self.kv_size]
+            self.q_size // self.sp_size, self.kv_size // self.sp_size,
+            self.kv_size // self.sp_size
         ],
                                 dim=-1)
-
-        # positional embeddings
-        q_, k_ = self.rotary_emb(positions, q_, k_)
 
         # attention
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
@@ -414,13 +413,13 @@ class LlamaModel(nn.Module):
             residual = intermediate_tensors["residual"]
 
         N_ulysses = N_ranks[self.sp_rank]
-        hidden_states_temp = hidden_states
-        hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
-                                   dtype=hidden_states.dtype,
-                                   device=hidden_states.device)
+        hidden_states = torch.rand(
+            (N_ulysses, hidden_states.shape[1]),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device) + hidden_states.sum()
         positions = torch.rand((N_ulysses, positions.shape[0]),
                                dtype=positions.dtype,
-                               device=positions.device)
+                               device=positions.device) + positions.sum()
 
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
@@ -449,7 +448,7 @@ class LlamaModel(nn.Module):
                                      group=get_sp_group().device_group)
         hidden_states = torch.cat(hidden_states_list)  #  + hidden_states.sum()
 
-        return hidden_states_temp + hidden_states.sum()
+        return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
