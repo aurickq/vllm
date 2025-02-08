@@ -412,22 +412,22 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        N = len(input_ids)
-        SP = get_sp_group().world_size
-        N_ranks = [N // SP] * SP
-        for i in range(N % SP):
-            N_ranks[i] += 1
-        SP_rank = get_sp_group().rank_in_group
+        # N = len(input_ids)
+        # SP = get_sp_group().world_size
+        # N_ranks = [N // SP] * SP
+        # for i in range(N % SP):
+        #     N_ranks[i] += 1
+        # SP_rank = get_sp_group().rank_in_group
 
         # narrow hidden_states
-        hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
-                                     N_ranks[SP_rank]).clone()
+        # hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
+        #                              N_ranks[SP_rank]).clone()
 
-        for i in range(self.start_layer, self.end_layer):
-            layer = self.layers[i]
-            hidden_states, residual = layer(positions, hidden_states, N_ranks,
-                                            kv_caches[i - self.start_layer],
-                                            attn_metadata, residual)
+        # for i in range(self.start_layer, self.end_layer):
+        #     layer = self.layers[i]
+        #     hidden_states, residual = layer(positions, hidden_states, N_ranks,
+        #                                     kv_caches[i - self.start_layer],
+        #                                     attn_metadata, residual)
 
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
@@ -438,15 +438,15 @@ class LlamaModel(nn.Module):
         hidden_states, _ = self.norm(hidden_states, residual)
 
         # all-gather hidden_states
-        hidden_states_list = [
-            torch.empty((N_ranks[i], hidden_states.shape[1]),
-                        dtype=hidden_states.dtype,
-                        device=hidden_states.device) for i in range(SP)
-        ]
-        torch.distributed.all_gather(hidden_states_list,
-                                     hidden_states,
-                                     group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list)
+        # hidden_states_list = [
+        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
+        #                 dtype=hidden_states.dtype,
+        #                 device=hidden_states.device) for i in range(SP)
+        # ]
+        # torch.distributed.all_gather(hidden_states_list,
+        #                              hidden_states,
+        #                              group=get_sp_group().device_group)
+        # hidden_states = torch.cat(hidden_states_list)
 
         return hidden_states
 
