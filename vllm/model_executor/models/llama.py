@@ -212,7 +212,7 @@ class LlamaAttention(nn.Module):
         # assert d // TP == self.q_size
         # assert d_kv // TP == self.kv_size
 
-        N = 256 * self.sp_size  # positions.shape[0]
+        N = 512 * self.sp_size  # positions.shape[0]
         N_ranks = [256 for _ in range(self.sp_size)]
         N_ulysses = N_ranks[self.sp_rank]
 
