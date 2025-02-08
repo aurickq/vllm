@@ -273,9 +273,9 @@ class LlamaAttention(nn.Module):
         # c += attn_output.sum()
 
         # output projection
-        output, _ = self.o_proj(c)
+        # output, _ = self.o_proj(c)
 
-        return hidden_states_temp + attn_output.sum() + output.sum()
+        return hidden_states_temp + attn_output.sum() + c.sum()
 
 
 class LlamaDecoderLayer(nn.Module):
