@@ -212,9 +212,9 @@ class LlamaAttention(nn.Module):
         # assert d // TP == self.q_size
         # assert d_kv // TP == self.kv_size
 
+        N_part = positions.shape[0] // self.sp_size
         N = positions.shape[0]
-        test = N // self.sp_size
-        N_ranks = [test for _ in range(self.sp_size)]
+        N_ranks = [N_part for _ in range(self.sp_size)]
         N_ulysses = N_ranks[self.sp_rank]
 
         # if torch.distributed.get_rank() == 0:
