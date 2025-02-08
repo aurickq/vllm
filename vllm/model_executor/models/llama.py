@@ -413,16 +413,11 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        # N_ulysses = N_ranks[self.sp_rank]
-        # N_start = sum(N_ranks[:self.sp_rank])
-
-        # hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
-        #                            dtype=hidden_states.dtype,
-        #                            device=hidden_states.device)
-        # hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
-        # hidden_states = hidden_states[N_start:N_start + N_ulysses]
-        # hidden_states_list = torch.split(hidden_states, N_ranks).tolist()
-        # hidden_states = hidden_states_list[self.sp_rank]
+        N_ulysses = N_ranks[self.sp_rank]
+        hidden_states_temp = hidden_states
+        hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
+                                   dtype=hidden_states.dtype,
+                                   device=hidden_states.device)
 
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
@@ -452,7 +447,7 @@ class LlamaModel(nn.Module):
         # hidden_states_list[self.sp_rank] = hidden_states
         hidden_states = torch.cat(hidden_states_list) + hidden_states.sum()
 
-        return hidden_states
+        return hidden_states_temp + hidden_states.sum()
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
@@ -618,12 +613,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
-        SP_rank = get_sp_group().rank_in_group
         N_ranks = [N // SP] * SP
-        N_start = sum(N_ranks[:SP_rank])
-        N_ulysses = N_ranks[SP_rank]
-        # input_ids = input_ids[N_start:N_start + N_ulysses].clone()
-        input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
