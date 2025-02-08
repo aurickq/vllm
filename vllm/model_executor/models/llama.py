@@ -413,16 +413,16 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        # N_ulysses = N_ranks[self.sp_rank]
-        # N_start = sum(N_ranks[:self.sp_rank])
+        N_ulysses = N_ranks[self.sp_rank]
+        N_start = sum(N_ranks[:self.sp_rank])
 
         # hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
         #                            dtype=hidden_states.dtype,
         #                            device=hidden_states.device)
-        # hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
+        hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
         # hidden_states = hidden_states[N_start:N_start + N_ulysses]
-        hidden_states_list = torch.split(hidden_states, N_ranks).tolist()
-        hidden_states = hidden_states_list[self.sp_rank]
+        # hidden_states_list = torch.split(hidden_states, N_ranks).tolist()
+        # hidden_states = hidden_states_list[self.sp_rank]
 
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
@@ -440,17 +440,17 @@ class LlamaModel(nn.Module):
         hidden_states, _ = self.norm(hidden_states, residual)
 
         # all-gather hidden_states
-        # hidden_states_list = [
-        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
-        #                 dtype=hidden_states.dtype,
-        #                 device=hidden_states.device)
-        #     for i in range(self.sp_size)
-        # ]
+        hidden_states_list = [
+            torch.empty((N_ranks[i], hidden_states.shape[1]),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device)
+            for i in range(self.sp_size)
+        ]
         # torch.distributed.all_gather(hidden_states_list,
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
-        hidden_states_list[self.sp_rank] = hidden_states
-        hidden_states = torch.cat(hidden_states_list)
+        # hidden_states_list[self.sp_rank] = hidden_states
+        hidden_states = torch.cat(hidden_states_list) + hidden_states.sum()
 
         return hidden_states
 
