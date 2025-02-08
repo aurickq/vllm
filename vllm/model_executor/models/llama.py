@@ -227,7 +227,6 @@ class LlamaAttention(nn.Module):
 
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
-
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
 
         # pack send buffer
@@ -260,23 +259,23 @@ class LlamaAttention(nn.Module):
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
 
         # communication
-        # c = torch.empty((SP, N_ulysses, self.q_size // SP),
-        #                 dtype=hidden_states.dtype,
-        #                 device=hidden_states.device)
+        c = torch.empty((self.sp_size, N_ulysses, self.q_size // self.sp_size),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device)
         # torch.distributed.all_to_all_single(c,
         #                                     attn_output,
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
-        # c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
-        c = torch.empty((N, self.q_size),
-                        dtype=hidden_states.dtype,
-                        device=hidden_states.device)
-        c += attn_output.sum()
+        c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
+        # c = torch.empty((N, self.q_size),
+        #                 dtype=hidden_states.dtype,
+        #                 device=hidden_states.device)
+        # c += attn_output.sum()
 
         # output projection
         output, _ = self.o_proj(c)
 
-        return output.sum() + hidden_states_temp
+        return hidden_states_temp + attn_output.sum() + output.sum()
 
 
 class LlamaDecoderLayer(nn.Module):
