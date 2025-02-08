@@ -420,9 +420,8 @@ class LlamaModel(nn.Module):
         # hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
         #                            dtype=hidden_states.dtype,
         #                            device=hidden_states.device)
-        # hidden_states = torch.narrow(hidden_states, 0,
-        #                              sum(N_ranks[:self.sp_rank]), N_ulysses)
-        hidden_states = hidden_states[N_start:N_start + N_ulysses]
+        hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
+        # hidden_states = hidden_states[N_start:N_start + N_ulysses]
 
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
@@ -430,7 +429,6 @@ class LlamaModel(nn.Module):
             hidden_states, residual = layer(positions, hidden_states, N_ranks,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
-        residual = hidden_states
 
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
@@ -450,7 +448,7 @@ class LlamaModel(nn.Module):
         # torch.distributed.all_gather(hidden_states_list,
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list)
+        hidden_states = torch.cat(hidden_states_list) + hidden_states
 
         return hidden_states
 
