@@ -424,10 +424,11 @@ class LlamaModel(nn.Module):
         #                              N_ranks[SP_rank]).clone()
 
         # for i in range(self.start_layer, self.end_layer):
-        #     layer = self.layers[i]
-        #     hidden_states, residual = layer(positions, hidden_states, N_ranks,
-        #                                     kv_caches[i - self.start_layer],
-        #                                     attn_metadata, residual)
+        for i in range(0, 1):
+            layer = self.layers[i]
+            hidden_states, residual = layer(positions, hidden_states,
+                                            kv_caches[i - self.start_layer],
+                                            attn_metadata, residual)
         residual = hidden_states
 
         if not get_pp_group().is_last_rank:
