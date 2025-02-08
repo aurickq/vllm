@@ -200,29 +200,7 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
-        # variables for Ulysses attention
-        # SP = get_sp_group().world_size
-        # TP = get_tp_group().world_size
-        # N = sum(N_ranks)
-        # N_ulysses = N_ranks[get_sp_group().rank_in_group]
-        # d = self.total_num_heads * self.head_dim
-        # d_kv = self.total_num_kv_heads * self.head_dim
-        # assert N_ulysses == hidden_states.shape[0]
-        # assert d == hidden_states.shape[1]
-        # assert d // TP == self.q_size
-        # assert d_kv // TP == self.kv_size
-
-        N = positions.shape[0]
-        # N_ranks = [256 for _ in range(self.sp_size)]
         N_ulysses = N_ranks[self.sp_rank]
-
-        # if torch.distributed.get_rank() == 0:
-        #     print(f"N: {N}, N_ulysses: {N_ulysses}, N_ranks: {N_ranks}")
-
-        # hidden_states_temp = hidden_states
-        # hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
-        #                             dtype=hidden_states.dtype,
-        #                             device=hidden_states.device)
 
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
@@ -235,10 +213,10 @@ class LlamaAttention(nn.Module):
              v.view((N_ulysses, self.sp_size, self.kv_size // self.sp_size))),
             dim=-1).transpose(0, 1).contiguous()
         # communication
-        qkv_ = torch.empty(
-            (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
-            dtype=qkv.dtype,
-            device=qkv.device)
+        qkv_ = torch.empty((positions.shape[0],
+                            (self.q_size + 2 * self.kv_size) // self.sp_size),
+                           dtype=qkv.dtype,
+                           device=qkv.device)
         # torch.distributed.all_to_all_single(qkv_,
         #                                     qkv,
         #                                     output_split_sizes=N_ranks,
@@ -265,13 +243,13 @@ class LlamaAttention(nn.Module):
         #                                     attn_output,
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
-        c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
         c += attn_output.sum()
+        c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
 
         # output projection
         output, _ = self.o_proj(c)
 
-        return output  # hidden_states_temp + attn_output.sum() + output.sum()
+        return output
 
 
 class LlamaDecoderLayer(nn.Module):
@@ -435,21 +413,8 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        # N = len(input_ids)
-        # SP = get_sp_group().world_size
-        # N_ranks = [N // SP] * SP
-        # for i in range(N % SP):
-        #     N_ranks[i] += 1
-        # SP_rank = get_sp_group().rank_in_group
-
-        # narrow hidden_states
-        # hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
-        #                              N_ranks[SP_rank]).clone()
-
-        # N = positions.shape[0]
         N_ulysses = N_ranks[self.sp_rank]
 
-        hidden_states_temp = hidden_states
         hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
                                    dtype=hidden_states.dtype,
                                    device=hidden_states.device)
@@ -480,9 +445,9 @@ class LlamaModel(nn.Module):
         # torch.distributed.all_gather(hidden_states_list,
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list) + hidden_states.sum()
+        hidden_states = torch.cat(hidden_states_list)
 
-        return hidden_states_temp + hidden_states.sum()
+        return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
