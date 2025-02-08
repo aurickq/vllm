@@ -212,13 +212,19 @@ class LlamaAttention(nn.Module):
         # assert d // TP == self.q_size
         # assert d_kv // TP == self.kv_size
 
-        # qkv projection
-        qkv, _ = self.qkv_proj(hidden_states)
-
         N = hidden_states.shape[0]
         N_ulysses = N // self.sp_size
         if self.sp_rank < N % self.sp_size:
             N_ulysses += 1
+
+        hidden_states_temp = hidden_states
+        hidden_states = torch.empty((N_ulysses, self.q_size),
+                                    dtype=hidden_states.dtype,
+                                    device=hidden_states.device)
+
+        # qkv projection
+        qkv, _ = self.qkv_proj(hidden_states)
+
         # pack send buffer
         # qkv = torch.cat((q.view((N_ulysses, SP, self.q_size // SP)),
         #                  k.view((N_ulysses, SP, self.kv_size // SP)),
@@ -264,7 +270,7 @@ class LlamaAttention(nn.Module):
         # output projection
         output, _ = self.o_proj(c)
 
-        return output
+        return output.sum() + hidden_states_temp
 
 
 class LlamaDecoderLayer(nn.Module):
