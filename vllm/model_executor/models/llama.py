@@ -396,6 +396,7 @@ class LlamaModel(nn.Module):
         self,
         input_ids: Optional[torch.Tensor],
         positions: torch.Tensor,
+        N: int,
         N_ranks: List[int],
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
@@ -415,9 +416,11 @@ class LlamaModel(nn.Module):
 
         N_ulysses = N_ranks[self.sp_rank]
 
-        hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
-                                   dtype=hidden_states.dtype,
-                                   device=hidden_states.device)
+        # hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
+        #                            dtype=hidden_states.dtype,
+        #                            device=hidden_states.device)
+        hidden_states = torch.narrow(hidden_states, 0,
+                                     sum(N_ranks[:self.sp_rank]), N_ulysses)
 
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
