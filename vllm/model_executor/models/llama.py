@@ -217,11 +217,11 @@ class LlamaAttention(nn.Module):
         if self.sp_rank < N % self.sp_size:
             N_ulysses += 1
 
-        if torch.distributed.get_rank() == 0:
-            print(f"N: {N}, N_ulysses: {N_ulysses}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"N: {N}, N_ulysses: {N_ulysses}")
 
         hidden_states_temp = hidden_states
-        hidden_states = torch.empty((N_ulysses, self.hidden_size),
+        hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
                                     dtype=hidden_states.dtype,
                                     device=hidden_states.device)
 
