@@ -111,7 +111,7 @@ class LlamaAttention(nn.Module):
         layer_idx = extract_layer_index(prefix)
         self.hidden_size = hidden_size
         tp_size = get_tp_group().world_size
-        # sp_size = get_sp_group().world_size
+        self.sp_size = get_sp_group().world_size
         self.total_num_heads = num_heads
         assert self.total_num_heads % tp_size == 0
         self.num_heads = num_heads // tp_size
@@ -180,10 +180,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads // get_sp_group().world_size,
+            self.num_heads // self.sp_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads // get_sp_group().world_size,
+            num_kv_heads=self.num_kv_heads // self.sp_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
@@ -214,27 +214,27 @@ class LlamaAttention(nn.Module):
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
 
-        q_, k_, v_ = qkv.split([self.q_size, self.kv_size, self.kv_size],
-                               dim=-1)
-
         # pack send buffer
         # qkv = torch.cat((q.view((N_ulysses, SP, self.q_size // SP)),
         #                  k.view((N_ulysses, SP, self.kv_size // SP)),
         #                  v.view((N_ulysses, SP, self.kv_size // SP))),
         #                 dim=-1).transpose(0, 1).contiguous()
         # communication
-        # qkv_ = torch.empty((hidden_states.shape[0],
-        # (self.q_size + 2 * self.kv_size) // SP),
-        #                    dtype=qkv.dtype,
-        #                    device=qkv.device)
+        qkv_ = torch.empty((hidden_states.shape[0],
+                            (self.q_size + 2 * self.kv_size) // self.sp_size),
+                           dtype=qkv.dtype,
+                           device=qkv.device)
         # torch.distributed.all_to_all_single(qkv_,
         #                                     qkv,
         #                                     output_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
+        qkv_ += qkv.sum()
         # unpack receive buffer
-        # q_, k_, v_ = qkv_.split(
-        #     [self.q_size // SP, self.kv_size // SP, self.kv_size // SP],
-        #     dim=-1)
+        q_, k_, v_ = qkv_.split([
+            self.q_size // self.sp_size, self.kv_size // self.sp_size,
+            self.kv_size // self.sp_size
+        ],
+                                dim=-1)
 
         # positional embeddings
         q_, k_ = self.rotary_emb(positions, q_, k_)
@@ -251,7 +251,10 @@ class LlamaAttention(nn.Module):
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
         # c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
-        c = attn_output
+        c = torch.empty((hidden_states.shape[0], self.q_size),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device)
+        c += attn_output.sum()
 
         # output projection
         output, _ = self.o_proj(c)
