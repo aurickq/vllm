@@ -315,7 +315,7 @@ class LlamaDecoderLayer(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        N_ranks: List[int],
+        # N_ranks: List[int],
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -327,11 +327,11 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
-        hidden_states = self.self_attn(positions=positions,
-                                       hidden_states=hidden_states,
-                                       N_ranks=N_ranks,
-                                       kv_cache=kv_cache,
-                                       attn_metadata=attn_metadata)
+        # hidden_states = self.self_attn(positions=positions,
+        #                                hidden_states=hidden_states,
+        #                                N_ranks=N_ranks,
+        #                                kv_cache=kv_cache,
+        #                                attn_metadata=attn_metadata)
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
