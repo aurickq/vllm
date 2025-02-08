@@ -228,11 +228,14 @@ class LlamaAttention(nn.Module):
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
 
+        q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+
         # pack send buffer
-        # qkv = torch.cat((q.view((N_ulysses, SP, self.q_size // SP)),
-        #                  k.view((N_ulysses, SP, self.kv_size // SP)),
-        #                  v.view((N_ulysses, SP, self.kv_size // SP))),
-        #                 dim=-1).transpose(0, 1).contiguous()
+        qkv = torch.cat(
+            (q.view((N_ulysses, self.sp_size, self.q_size // self.sp_size)),
+             k.view((N_ulysses, self.sp_size, self.kv_size // self.sp_size)),
+             v.view((N_ulysses, self.sp_size, self.kv_size // self.sp_size))),
+            dim=-1).transpose(0, 1).contiguous()
         # communication
         qkv_ = torch.empty(
             (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
