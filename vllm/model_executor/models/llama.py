@@ -212,13 +212,12 @@ class LlamaAttention(nn.Module):
         # assert d // TP == self.q_size
         # assert d_kv // TP == self.kv_size
 
-        # N_part = positions.shape[0] // self.sp_size
         N = positions.shape[0]
-        N_ranks = [N // self.sp_size for _ in range(self.sp_size)]
-        N_ulysses = N_ranks[self.sp_rank]
+        # N_ranks = [256 for _ in range(self.sp_size)]
+        N_ulysses = N // self.sp_size  # N_ranks[self.sp_rank]
 
-        if torch.distributed.get_rank() == 0:
-            print(f"N: {N}, N_ulysses: {N_ulysses}, N_ranks: {N_ranks}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"N: {N}, N_ulysses: {N_ulysses}, N_ranks: {N_ranks}")
 
         hidden_states_temp = hidden_states
         hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
