@@ -616,6 +616,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
         N_ranks = [N // SP] * SP
+        for i in range(N % SP):
+            N_ranks[i] += 1
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
