@@ -267,15 +267,11 @@ class LlamaAttention(nn.Module):
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
         c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
-        # c = torch.empty((N, self.q_size),
-        #                 dtype=hidden_states.dtype,
-        #                 device=hidden_states.device)
-        # c += attn_output.sum()
 
         # output projection
-        # output, _ = self.o_proj(c)
+        output, _ = self.o_proj(c)
 
-        return hidden_states_temp + attn_output.sum() + c.sum()
+        return hidden_states_temp + attn_output.sum() + output.sum()
 
 
 class LlamaDecoderLayer(nn.Module):
