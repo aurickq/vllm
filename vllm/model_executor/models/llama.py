@@ -236,8 +236,8 @@ class LlamaAttention(nn.Module):
         qkv_ += qkv.sum()
         # unpack receive buffer
         q_, k_, v_ = qkv_.split([
-            self.q_size // self.sp_size, self.kv_size // self.sp_size,
-            self.kv_size // self.sp_size
+            d // self.sp_size
+            for d in [self.q_size, self.kv_size, self.kv_size]
         ],
                                 dim=-1)
 
