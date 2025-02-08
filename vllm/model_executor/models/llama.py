@@ -212,7 +212,7 @@ class LlamaAttention(nn.Module):
         # assert d // TP == self.q_size
         # assert d_kv // TP == self.kv_size
 
-        N = hidden_states.shape[0]
+        N = positions.shape[0]
         N_ulysses = N // self.sp_size
         if self.sp_rank < N % self.sp_size:
             N_ulysses += 1
@@ -262,7 +262,7 @@ class LlamaAttention(nn.Module):
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
         # c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
-        c = torch.empty((hidden_states.shape[0], self.q_size),
+        c = torch.empty((N, self.q_size),
                         dtype=hidden_states.dtype,
                         device=hidden_states.device)
         c += attn_output.sum()
