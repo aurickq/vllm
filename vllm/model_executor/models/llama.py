@@ -396,7 +396,6 @@ class LlamaModel(nn.Module):
         self,
         input_ids: Optional[torch.Tensor],
         positions: torch.Tensor,
-        N: int,
         N_ranks: List[int],
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
