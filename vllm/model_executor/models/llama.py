@@ -195,7 +195,7 @@ class LlamaAttention(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        # N_ranks: List[int],
+        N_ranks: List[int],
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
@@ -213,7 +213,7 @@ class LlamaAttention(nn.Module):
         # assert d_kv // TP == self.kv_size
 
         N = positions.shape[0]
-        N_ranks = [256 for _ in range(self.sp_size)]
+        # N_ranks = [256 for _ in range(self.sp_size)]
         N_ulysses = N_ranks[self.sp_rank]
 
         # if torch.distributed.get_rank() == 0:
@@ -334,7 +334,7 @@ class LlamaDecoderLayer(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        # N_ranks: List[int],
+        N_ranks: List[int],
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -346,12 +346,11 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
-        hidden_states = self.self_attn(
-            positions=positions,
-            hidden_states=hidden_states,
-            #                                N_ranks=N_ranks,
-            kv_cache=kv_cache,
-            attn_metadata=attn_metadata)
+        hidden_states = self.self_attn(positions=positions,
+                                       hidden_states=hidden_states,
+                                       N_ranks=N_ranks,
+                                       kv_cache=kv_cache,
+                                       attn_metadata=attn_metadata)
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
@@ -458,7 +457,7 @@ class LlamaModel(nn.Module):
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
             layer = self.layers[i]
-            hidden_states, residual = layer(positions, hidden_states,
+            hidden_states, residual = layer(positions, hidden_states, N_ranks,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
         residual = hidden_states
