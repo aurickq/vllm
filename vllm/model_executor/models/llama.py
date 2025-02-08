@@ -112,6 +112,7 @@ class LlamaAttention(nn.Module):
         self.hidden_size = hidden_size
         tp_size = get_tp_group().world_size
         self.sp_size = get_sp_group().world_size
+        self.sp_rank = get_sp_group().rank_in_group
         self.total_num_heads = num_heads
         assert self.total_num_heads % tp_size == 0
         self.num_heads = num_heads // tp_size
