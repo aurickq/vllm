@@ -441,10 +441,9 @@ class LlamaModel(nn.Module):
                         device=hidden_states.device)
             for i in range(self.sp_size)
         ]
-        # torch.distributed.all_gather(hidden_states_list,
-        #                              hidden_states,
-        #                              group=get_sp_group().device_group)
-        # hidden_states_list[self.sp_rank] = hidden_states
+        torch.distributed.all_gather(hidden_states_list,
+                                     hidden_states,
+                                     group=get_sp_group().device_group)
         hidden_states = torch.cat(hidden_states_list) + hidden_states.sum()
 
         return hidden_states_temp + hidden_states.sum()
