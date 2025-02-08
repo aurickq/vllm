@@ -30,7 +30,7 @@ from vllm.attention import Attention, AttentionMetadata
 from vllm.compilation.decorators import support_torch_compile
 # from vllm.config import CacheConfig, LoRAConfig
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import get_pp_group, get_tp_group
+from vllm.distributed import get_pp_group, get_sp_group, get_tp_group
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
@@ -180,10 +180,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads,  # // get_sp_group().world_size,
+            self.num_heads // get_sp_group().world_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads,  # // get_sp_group().world_size,
+            num_kv_heads=self.num_kv_heads // get_sp_group().world_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
