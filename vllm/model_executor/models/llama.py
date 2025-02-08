@@ -419,6 +419,7 @@ class LlamaModel(nn.Module):
         self,
         input_ids: Optional[torch.Tensor],
         positions: torch.Tensor,
+        N_ranks: List[int],
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
         intermediate_tensors: Optional[IntermediateTensors],
@@ -447,7 +448,6 @@ class LlamaModel(nn.Module):
         #                              N_ranks[SP_rank]).clone()
 
         # N = positions.shape[0]
-        N_ranks = [256 for _ in range(self.sp_size)]
         N_ulysses = N_ranks[self.sp_rank]
 
         hidden_states_temp = hidden_states
@@ -632,6 +632,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
 
+        self.sp_size = get_sp_group().world_size
+
     def _init_model(self, vllm_config: VllmConfig, prefix: str = ""):
         return LlamaModel(vllm_config=vllm_config, prefix=prefix)
 
@@ -647,7 +649,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         intermediate_tensors: Optional[IntermediateTensors] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
-        model_output = self.model(input_ids, positions, kv_caches,
+        N_ranks = [256 for _ in range(self.sp_size)]
+        model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
         return model_output
