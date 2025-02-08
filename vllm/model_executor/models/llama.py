@@ -410,6 +410,7 @@ class LlamaModel(nn.Module):
                 ["hidden_states", "residual"], config.hidden_size))
 
         self.sp_size = get_sp_group().world_size
+        self.sp_rank = get_sp_group().rank_in_group
 
     def get_input_embeddings(self, input_ids: torch.Tensor) -> torch.Tensor:
         return self.embed_tokens(input_ids)
