@@ -649,7 +649,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         intermediate_tensors: Optional[IntermediateTensors] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
-        N_ranks = [256 for _ in range(self.sp_size)]
+        N_ranks = [
+            input_ids.shape[0] // self.sp_size for _ in range(self.sp_size)
+        ]
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
