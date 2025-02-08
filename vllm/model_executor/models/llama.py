@@ -213,16 +213,16 @@ class LlamaAttention(nn.Module):
         # assert d_kv // TP == self.kv_size
 
         N = positions.shape[0]
-        # N_ranks = [256 for _ in range(self.sp_size)]
-        N_ulysses = N // self.sp_size  # N_ranks[self.sp_rank]
+        N_ranks = [256 for _ in range(self.sp_size)]
+        N_ulysses = N_ranks[self.sp_rank]
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"N: {N}, N_ulysses: {N_ulysses}, N_ranks: {N_ranks}")
 
-        hidden_states_temp = hidden_states
-        hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
-                                    dtype=hidden_states.dtype,
-                                    device=hidden_states.device)
+        # hidden_states_temp = hidden_states
+        # hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
+        #                             dtype=hidden_states.dtype,
+        #                             device=hidden_states.device)
 
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
@@ -266,11 +266,12 @@ class LlamaAttention(nn.Module):
         #                                     input_split_sizes=N_ranks,
         #                                     group=get_sp_group().device_group)
         c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
+        c += attn_output.sum()
 
         # output projection
         output, _ = self.o_proj(c)
 
-        return hidden_states_temp + attn_output.sum() + output.sum()
+        return output  # hidden_states_temp + attn_output.sum() + output.sum()
 
 
 class LlamaDecoderLayer(nn.Module):
@@ -408,6 +409,8 @@ class LlamaModel(nn.Module):
             make_empty_intermediate_tensors_factory(
                 ["hidden_states", "residual"], config.hidden_size))
 
+        self.sp_size = get_sp_group().world_size
+
     def get_input_embeddings(self, input_ids: torch.Tensor) -> torch.Tensor:
         return self.embed_tokens(input_ids)
 
@@ -442,6 +445,15 @@ class LlamaModel(nn.Module):
         # hidden_states = torch.narrow(hidden_states, 0, sum(N_ranks[:SP_rank]),
         #                              N_ranks[SP_rank]).clone()
 
+        # N = positions.shape[0]
+        N_ranks = [256 for _ in range(self.sp_size)]
+        N_ulysses = N_ranks[self.sp_rank]
+
+        hidden_states_temp = hidden_states
+        hidden_states = torch.rand((N_ulysses, hidden_states.shape[1]),
+                                   dtype=hidden_states.dtype,
+                                   device=hidden_states.device)
+
         # for i in range(self.start_layer, self.end_layer):
         for i in range(0, 1):
             layer = self.layers[i]
@@ -469,7 +481,7 @@ class LlamaModel(nn.Module):
         #                              group=get_sp_group().device_group)
         # hidden_states = torch.cat(hidden_states_list)
 
-        return hidden_states
+        return hidden_states_temp + hidden_states.sum()
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
