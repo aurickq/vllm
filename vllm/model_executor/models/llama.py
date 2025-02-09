@@ -413,10 +413,9 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        N_start = sum(N_ranks[:self.sp_rank])
         N_ulysses = N_ranks[self.sp_rank]
 
-        hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
+        hidden_states = torch.narrow(hidden_states, 0, 0, N_ulysses)
         # hidden_states = torch.rand(
         #     (N_ulysses, hidden_states.shape[1]),
         #     dtype=hidden_states.dtype,
