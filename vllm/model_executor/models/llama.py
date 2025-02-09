@@ -423,8 +423,8 @@ class LlamaModel(nn.Module):
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
 
-        # for i in range(0, 1):
-        for i in range(self.start_layer, self.end_layer):
+        for i in range(0, 1):
+            # for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(positions, hidden_states, N_ranks,
                                             kv_caches[i - self.start_layer],
@@ -619,10 +619,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
-        N_start = sum(N_ranks[:self.model.sp_rank])
-        N_ulysses = N_ranks[self.model.sp_rank]
+        # N_start = sum(N_ranks[:self.model.sp_rank])
+        # N_ulysses = N_ranks[self.model.sp_rank]
 
-        input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
+        # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
