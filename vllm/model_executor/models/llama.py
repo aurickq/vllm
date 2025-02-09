@@ -448,7 +448,7 @@ class LlamaModel(nn.Module):
         # torch.distributed.all_gather(hidden_states_list,
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list) + hidden_states.sum()
+        hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
         return hidden_states
 
