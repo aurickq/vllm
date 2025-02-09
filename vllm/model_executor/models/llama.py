@@ -413,12 +413,14 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
+        N_start = sum(N_ranks[:self.sp_rank])
         N_ulysses = N_ranks[self.sp_rank]
 
-        hidden_states = torch.rand(
-            (N_ulysses, hidden_states.shape[1]),
-            dtype=hidden_states.dtype,
-            device=hidden_states.device) + hidden_states.sum()
+        hidden_states = torch.narrow(hidden_states, 0, N_start, N_ulysses)
+        # hidden_states = torch.rand(
+        #     (N_ulysses, hidden_states.shape[1]),
+        #     dtype=hidden_states.dtype,
+        #     device=hidden_states.device) + hidden_states.sum()
         # positions = torch.rand(N_ulysses,
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
@@ -619,11 +621,11 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
-        N_start = sum(N_ranks[:self.model.sp_rank])
-        N_ulysses = N_ranks[self.model.sp_rank]
+        # N_start = sum(N_ranks[:self.model.sp_rank])
+        # N_ulysses = N_ranks[self.model.sp_rank]
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
-        input_ids = input_ids[N_start:N_start + N_ulysses]
+        # input_ids = input_ids.view
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
