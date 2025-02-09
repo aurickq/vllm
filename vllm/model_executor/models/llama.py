@@ -217,10 +217,10 @@ class LlamaAttention(nn.Module):
                             (self.q_size + 2 * self.kv_size) // self.sp_size),
                            dtype=qkv.dtype,
                            device=qkv.device)
-        torch.distributed.all_to_all_single(qkv_,
-                                            qkv,
-                                            output_split_sizes=N_ranks,
-                                            group=get_sp_group().device_group)
+        # torch.distributed.all_to_all_single(qkv_,
+        #                                     qkv,
+        #                                     output_split_sizes=N_ranks,
+        #                                     group=get_sp_group().device_group)
         qkv_ += qkv.sum()
         # unpack receive buffer
         q_, k_, v_ = qkv_.split([
