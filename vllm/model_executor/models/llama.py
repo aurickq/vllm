@@ -447,7 +447,7 @@ class LlamaModel(nn.Module):
             (N, hidden_states.shape[1]),
             dtype=hidden_states.dtype,
             device=hidden_states.device) + hidden_states.sum()
-        hidden_states.fill_(1.27)
+        hidden_states.fill_(N_ulysses)
 
         # all-gather hidden_states
         # hidden_states_list = [
