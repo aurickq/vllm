@@ -189,10 +189,10 @@ class FlashAttentionImpl(AttentionImpl):
         # Minimize the PyTorch ops in this method as much as possible.
         # Whenever making a change in this method, please benchmark the
         # performance to make sure it does not introduce any overhead.
-        if torch.distributed.get_rank() == 0:
-            print(f"FlashAttentionImpl.forward query {query.shape} \
-                  key {key.shape} value {value.shape} kv_cache {kv_cache.shape}"
-                  )
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"FlashAttentionImpl.forward query {query.shape} \
+        #       key {key.shape} value {value.shape} kv_cache {kv_cache.shape}"
+        #           )
         # return output
 
         num_actual_tokens = attn_metadata.num_actual_tokens
