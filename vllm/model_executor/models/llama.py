@@ -217,12 +217,8 @@ class LlamaAttention(nn.Module):
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
-
         # attention
-        # attn_output = self.attn(q, k, v, kv_cache,
-        #                         attn_metadata) + q.sum() + k.sum() + v.sum()
-        attn_output = torch.ones_like(q) + k.sum() + v.sum()
-
+        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
         # output projection
         output, _ = self.o_proj(attn_output)
 
