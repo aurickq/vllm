@@ -194,6 +194,11 @@ class LlamaAttention(nn.Module):
             prefix=f"{prefix}.attn",
         )
 
+        self.qkv_ = torch.empty(
+            (16384, (self.q_size + 2 * self.kv_size) // self.sp_size),
+            dtype=torch.bfloat16,
+            device='cuda')
+
     def forward(
         self,
         positions: torch.Tensor,
@@ -219,14 +224,14 @@ class LlamaAttention(nn.Module):
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
 
-        # q_, k_, v_ = qkv_.split([
-        #     self.q_size // self.sp_size, self.kv_size // self.sp_size,
-        #     self.kv_size // self.sp_size
-        # ],
-        #                         dim=-1)
+        q_, k_, v_ = self.qkv_.split([
+            self.q_size // self.sp_size, self.kv_size // self.sp_size,
+            self.kv_size // self.sp_size
+        ],
+                                     dim=-1)
 
         # attention
-        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
+        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
         # output projection
         output, _ = self.o_proj(q.contiguous())
 
