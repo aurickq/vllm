@@ -200,7 +200,6 @@ class LlamaAttention(nn.Module):
         hidden_states: torch.Tensor,
         # N_ranks: List[int],
         N_ranks: torch.Tensor,
-        qkv_: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
@@ -219,22 +218,24 @@ class LlamaAttention(nn.Module):
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
 
+        return hidden_states + q.sum() + k.sum() + v.sum()
+
         # qkv_ = torch.empty(
         #     (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
         #     dtype=qkv.dtype,
         #     device=qkv.device) + q.sum() + k.sum() + v.sum()
 
-        q_, k_, v_ = qkv_.split([
-            self.q_size // self.sp_size, self.kv_size // self.sp_size,
-            self.kv_size // self.sp_size
-        ],
-                                dim=-1)
+        # q_, k_, v_ = qkv_.split([
+        #     self.q_size // self.sp_size, self.kv_size // self.sp_size,
+        #     self.kv_size // self.sp_size
+        # ],
+        #                         dim=-1)
 
         # attention
-        attn_output = self.attn(q_, k_, v_, kv_cache,
-                                attn_metadata) + q.sum() + k.sum() + v.sum()
+        # attn_output = self.attn(q_, k_, v_, kv_cache,
+        #                         attn_metadata) + q.sum() + k.sum() + v.sum()
 
-        return hidden_states + attn_output.sum()
+        return hidden_states  # + attn_output.sum()
 
         N_ulysses = N_ranks[self.sp_rank]
         # pack send buffer
@@ -342,7 +343,6 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         # N_ranks: List[int],
         N_ranks: torch.Tensor,
-        qkv_: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -357,7 +357,6 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states = self.self_attn(positions=positions,
                                        hidden_states=hidden_states,
                                        N_ranks=N_ranks,
-                                       qkv_=qkv_,
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
         # Fully Connected
@@ -429,7 +428,6 @@ class LlamaModel(nn.Module):
         positions: torch.Tensor,
         # N_ranks: List[int],
         N_ranks: torch.Tensor,
-        qkv_: torch.Tensor,
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
         intermediate_tensors: Optional[IntermediateTensors],
@@ -464,7 +462,6 @@ class LlamaModel(nn.Module):
             # for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(positions, hidden_states, N_ranks,
-                                            qkv_,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
         # residual = hidden_states
@@ -682,9 +679,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        qkv_ = torch.empty((N, (4096 + 2 * 1024) // SP),
-                           device=input_ids.device)
-        model_output = self.model(input_ids, positions, N_ranks_tensor, qkv_,
+        model_output = self.model(input_ids, positions, N_ranks_tensor,
                                   kv_caches, attn_metadata,
                                   intermediate_tensors, inputs_embeds)
 
