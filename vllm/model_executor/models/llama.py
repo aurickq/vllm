@@ -224,20 +224,20 @@ class LlamaAttention(nn.Module):
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
 
-        q_, k_, v_ = self.qkv_.split([
-            self.q_size // self.sp_size, self.kv_size // self.sp_size,
-            self.kv_size // self.sp_size
-        ],
-                                     dim=-1)
+        # q_, k_, v_ = self.qkv_.split([
+        #     self.q_size // self.sp_size, self.kv_size // self.sp_size,
+        #     self.kv_size // self.sp_size
+        # ],
+        #                              dim=-1)
 
         # attention
-        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
+        # attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
         # output projection
         output, _ = self.o_proj(q.contiguous())
 
-        return output + attn_output.sum()
+        return output + k.sum() + v.sum()
 
-        return hidden_states + q.sum() + k.sum() + v.sum()
+        # return hidden_states + q.sum() + k.sum() + v.sum()
 
         # qkv_ = torch.empty(
         #     (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
