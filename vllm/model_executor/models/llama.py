@@ -205,11 +205,11 @@ class LlamaAttention(nn.Module):
     ) -> torch.Tensor:
 
         global N_test
-        # hidden_states.fill_(N_ranks[0])
+        hidden_states.fill_(N_ranks[0])
         # hidden_states.fill_(N_test)
         # hidden_states.fill_(hidden_states.shape[0])
 
-        # return hidden_states
+        return hidden_states
 
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
@@ -342,9 +342,9 @@ class LlamaDecoderLayer(nn.Module):
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
         # Fully Connected
-        hidden_states, residual = self.post_attention_layernorm(
-            hidden_states, residual)
-        hidden_states = self.mlp(hidden_states)
+        # hidden_states, residual = self.post_attention_layernorm(
+        #     hidden_states, residual)
+        # hidden_states = self.mlp(hidden_states)
 
         return hidden_states, residual
 
@@ -454,7 +454,7 @@ class LlamaModel(nn.Module):
                 "residual": residual
             })
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        # hidden_states, _ = self.norm(hidden_states, residual)
 
         # N = positions.shape[0]
         # hidden_states = torch.empty(
@@ -474,8 +474,6 @@ class LlamaModel(nn.Module):
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
         # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
-
-        hidden_states.fill_(N_ranks.sum())
 
         return hidden_states
 
