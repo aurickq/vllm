@@ -212,7 +212,6 @@ class LlamaAttention(nn.Module):
         # return hidden_states
 
         N_ulysses = N_ranks[self.sp_rank]
-        N = N_ranks.sum()
 
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
@@ -225,15 +224,14 @@ class LlamaAttention(nn.Module):
         #     dtype=qkv.dtype,
         #     device=qkv.device) + q.sum() + k.sum() + v.sum()
 
-        q_, k_, v_ = qkv_.split([self.q_size, self.kv_size, self.kv_size] //
-                                self.sp_size,
-                                dim=-1)
+        q_, k_, v_ = qkv_.split(
+            [self.q_size, self.kv_size, self.kv_size] // self.sp_size,
+            dim=-1) + q.sum() + k.sum() + v.sum()
 
         # attention
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
 
-        return hidden_states + attn_output.sum() + q.sum() + k.sum() + v.sum(
-        ) + N
+        return hidden_states + attn_output.sum()
 
         N_ulysses = N_ranks[self.sp_rank]
         # pack send buffer
@@ -681,9 +679,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        qkv_ = torch.empty(
-            (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
-            device=input_ids.device)
+        qkv_ = torch.empty((N, (4096 + 2 * 1024) // SP),
+                           device=input_ids.device)
         model_output = self.model(input_ids, positions, N_ranks_tensor, qkv_,
                                   kv_caches, attn_metadata,
                                   intermediate_tensors, inputs_embeds)
