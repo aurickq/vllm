@@ -205,7 +205,8 @@ class LlamaAttention(nn.Module):
 
         global N_test
         # hidden_states.fill_(N_ranks[0])
-        hidden_states.fill_(N_test)
+        # hidden_states.fill_(N_test)
+        hidden_states.fill_(hidden_states.shape[0])
 
         return hidden_states
         N_ulysses = N_ranks[self.sp_rank]
@@ -641,8 +642,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             N_ranks[i] += 1
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
-        global N_test
-        N_test = N_ulysses
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
