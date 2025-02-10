@@ -219,11 +219,11 @@ class LlamaAttention(nn.Module):
         q, k = self.rotary_emb(positions, q, k)
 
         # attention
-        # attn_output = self.attn(q_, k_, v_, kv_cache,
+        # attn_output = self.attn(q, k, v, kv_cache,
         #                         attn_metadata) + q.sum() + k.sum() + v.sum()
 
         # output projection
-        output, _ = self.o_proj(q) + k.sum() + v.sum()
+        output, _ = self.o_proj(q)  # + k.sum() + v.sum()
 
         return output
 
