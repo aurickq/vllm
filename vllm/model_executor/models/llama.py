@@ -229,7 +229,7 @@ class LlamaAttention(nn.Module):
         attn_output = self.attn(q_.contiguous(), k_.contiguous(),
                                 v_.contiguous(), kv_cache, attn_metadata)
         # output projection
-        output, _ = self.o_proj(q)
+        output, _ = self.o_proj(q.contiguous())
 
         return output + attn_output.sum() + k.sum() + v.sum()
 
