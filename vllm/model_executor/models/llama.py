@@ -635,11 +635,24 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
-        model_output = torch.ones(
-            (N, model_output.shape[1]),
-            dtype=model_output.dtype,
-            device=model_output.device) + model_output.sum()
+
+        # all-gather model_output
+        model_output_list = [
+            torch.empty((N_ranks[i], model_output.shape[1]),
+                        dtype=model_output.dtype,
+                        device=model_output.device)
+            for i in range(get_sp_group().world_size)
+        ]
+        torch.distributed.all_gather(model_output_list,
+                                     model_output,
+                                     group=get_sp_group().device_group)
+        model_output = torch.cat(model_output_list)  # + hidden_states.sum()
+        # model_output = torch.ones(
+        #     (N, model_output.shape[1]),
+        #     dtype=model_output.dtype,
+        #     device=model_output.device) + model_output.sum()
         if torch.distributed.get_rank() == 0:
+            print(f"model_output: {model_output.shape}")
             print(f"model_output: {model_output}")
         return model_output
 
