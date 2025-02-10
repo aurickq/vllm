@@ -413,13 +413,14 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        N_ulysses = N_ranks[self.sp_rank]
+        # hidden_states_temp = hidden_states
 
-        hidden_states = torch.ones(
-            (N_ulysses, hidden_states.shape[1]),
-            dtype=hidden_states.dtype,
-            device=hidden_states.device) + hidden_states[
-                0:N_ulysses]  # hidden_states.sum()
+        return torch.zeros_like(hidden_states)
+        hidden_states_temp = hidden_states
+        N_ulysses = N_ranks[self.sp_rank]
+        hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
+                                    dtype=hidden_states.dtype,
+                                    device=hidden_states.device)
         # positions = torch.rand(N_ulysses,
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
@@ -451,7 +452,7 @@ class LlamaModel(nn.Module):
                                      group=get_sp_group().device_group)
         hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
-        return hidden_states
+        return hidden_states_temp + hidden_states.sum()
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
@@ -631,6 +632,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
+        if torch.distributed.get_rank() == 0:
+            print(f"model_output: {model_output}")
         return model_output
 
     def compute_logits(
