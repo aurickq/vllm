@@ -224,9 +224,11 @@ class LlamaAttention(nn.Module):
         #     dtype=qkv.dtype,
         #     device=qkv.device) + q.sum() + k.sum() + v.sum()
 
-        q_, k_, v_ = qkv_.split(
-            [self.q_size, self.kv_size, self.kv_size] // self.sp_size,
-            dim=-1) + q.sum() + k.sum() + v.sum()
+        q_, k_, v_ = qkv_.split([
+            self.q_size // self.sp_size, self.kv_size // self.sp_size,
+            self.kv_size // self.sp_size
+        ],
+                                dim=-1) + q.sum() + k.sum() + v.sum()
 
         # attention
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
