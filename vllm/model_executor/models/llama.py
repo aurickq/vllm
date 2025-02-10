@@ -200,7 +200,7 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
-        hidden_states = N_ranks[0]
+        hidden_states.fill_(N_ranks[0])
 
         return hidden_states
         N_ulysses = N_ranks[self.sp_rank]
