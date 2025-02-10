@@ -630,6 +630,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             print(f"input_ids: {input_ids.shape}")
             print(f"positions: {positions.shape}")
             print(f"N {N}, SP {SP}, N_ranks {N_ranks}")
+
+        input_ids = input_ids[0:4]
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
