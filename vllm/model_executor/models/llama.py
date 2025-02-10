@@ -627,8 +627,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
         if torch.distributed.get_rank() == 0:
-            print(f"input_ids: {input_ids}")
-            print(f"positions: {positions}")
+            print(f"input_ids: {input_ids.shape}")
+            print(f"positions: {positions.shape}")
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
