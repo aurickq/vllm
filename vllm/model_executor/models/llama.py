@@ -649,9 +649,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
 
-        N_ranks = torch.tensor(N_ranks,
-                               dtype=torch.int,
-                               device=input_ids.device)
+        N_ranks_tensor = torch.tensor(N_ranks,
+                                      dtype=torch.int,
+                                      device=input_ids.device)
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
@@ -662,9 +662,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        model_output = self.model(input_ids, positions, N_ranks, kv_caches,
-                                  attn_metadata, intermediate_tensors,
-                                  inputs_embeds)
+        model_output = self.model(input_ids, positions, N_ranks_tensor,
+                                  kv_caches, attn_metadata,
+                                  intermediate_tensors, inputs_embeds)
 
         # all-gather model_output
         model_output_list = [
