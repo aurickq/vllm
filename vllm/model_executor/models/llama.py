@@ -701,10 +701,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        qkv_ = torch.narrow(self.qkv_, 0, 0, N)
-        # qkv_ = torch.empty((N, 512 + 2 * 128),
-        #                    dtype=torch.bfloat16,
-        #                    device=input_ids.device)
+        # qkv_ = torch.narrow(self.qkv_, 0, 0, N)
+        qkv_ = torch.empty((N, 512 + 2 * 128),
+                           dtype=torch.bfloat16,
+                           device=input_ids.device)
         model_output = self.model(input_ids, positions, N_ranks_tensor, qkv_,
                                   kv_caches, attn_metadata,
                                   intermediate_tensors, inputs_embeds)
