@@ -413,9 +413,9 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        # hidden_states_temp = hidden_states
+        hidden_states = 1
 
-        return torch.ones_like(hidden_states)
+        return hidden_states
         hidden_states_temp = hidden_states
         N_ulysses = N_ranks[self.sp_rank]
         hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
