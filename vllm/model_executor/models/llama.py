@@ -440,21 +440,21 @@ class LlamaModel(nn.Module):
                 "residual": residual
             })
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        # hidden_states, _ = self.norm(hidden_states, residual)
 
         hidden_states.fill_(1.27)
 
         # all-gather hidden_states
-        hidden_states_list = [
-            torch.empty((N_ranks[i], hidden_states.shape[1]),
-                        dtype=hidden_states.dtype,
-                        device=hidden_states.device)
-            for i in range(self.sp_size)
-        ]
-        torch.distributed.all_gather(hidden_states_list,
-                                     hidden_states,
-                                     group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
+        # hidden_states_list = [
+        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
+        #                 dtype=hidden_states.dtype,
+        #                 device=hidden_states.device)
+        #     for i in range(self.sp_size)
+        # ]
+        # torch.distributed.all_gather(hidden_states_list,
+        #                              hidden_states,
+        #                              group=get_sp_group().device_group)
+        # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
         return hidden_states
 
