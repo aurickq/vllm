@@ -413,7 +413,7 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        hidden_states = 1
+        hidden_states.fill_(1.5)
 
         return hidden_states
         hidden_states_temp = hidden_states
