@@ -415,22 +415,22 @@ class LlamaModel(nn.Module):
 
         hidden_states.fill_(1.5)
 
-        return hidden_states
-        hidden_states_temp = hidden_states
-        N_ulysses = N_ranks[self.sp_rank]
-        hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
-                                    dtype=hidden_states.dtype,
-                                    device=hidden_states.device)
+        # hidden_states_temp = hidden_states
+        # N_ulysses = N_ranks[self.sp_rank]
+        # hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
+        #                             dtype=hidden_states.dtype,
+        #                             device=hidden_states.device)
         # positions = torch.rand(N_ulysses,
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
 
-        for i in range(0, 1):
-            # for i in range(self.start_layer, self.end_layer):
-            layer = self.layers[i]
-            hidden_states, residual = layer(positions, hidden_states, N_ranks,
-                                            kv_caches[i - self.start_layer],
-                                            attn_metadata, residual)
+        # for i in range(0, 1):
+        #     # for i in range(self.start_layer, self.end_layer):
+        #     layer = self.layers[i]
+        #    hidden_states, residual = layer(positions, hidden_states, N_ranks,
+        #                                     kv_caches[i - self.start_layer],
+        #                                     attn_metadata, residual)
+        residual = hidden_states
 
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
@@ -440,19 +440,20 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
+        return hidden_states
         # all-gather hidden_states
-        hidden_states_list = [
-            torch.empty((N_ranks[i], hidden_states.shape[1]),
-                        dtype=hidden_states.dtype,
-                        device=hidden_states.device)
-            for i in range(self.sp_size)
-        ]
-        torch.distributed.all_gather(hidden_states_list,
-                                     hidden_states,
-                                     group=get_sp_group().device_group)
-        hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
-
-        return hidden_states_temp + hidden_states.sum()
+        # hidden_states_list = [
+        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
+        #                 dtype=hidden_states.dtype,
+        #                 device=hidden_states.device)
+        #     for i in range(self.sp_size)
+        # ]
+        # torch.distributed.all_gather(hidden_states_list,
+        #                              hidden_states,
+        #                              group=get_sp_group().device_group)
+        # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
+        #
+        # return hidden_states_temp + hidden_states.sum()
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
@@ -643,9 +644,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
                         device=model_output.device)
             for i in range(get_sp_group().world_size)
         ]
-        # torch.distributed.all_gather(model_output_list,
-        #                              model_output,
-        #                              group=get_sp_group().device_group)
+        torch.distributed.all_gather(model_output_list,
+                                     model_output,
+                                     group=get_sp_group().device_group)
         model_output = torch.cat(model_output_list)  # + hidden_states.sum()
         # model_output = torch.ones(
         #     (N, model_output.shape[1]),
