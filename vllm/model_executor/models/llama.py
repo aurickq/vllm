@@ -499,6 +499,8 @@ class LlamaModel(nn.Module):
         #                              group=get_sp_group().device_group)
         # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
+        hidden_states.fill_(N_ranks.sum())
+
         return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
