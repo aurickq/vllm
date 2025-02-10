@@ -442,6 +442,8 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
+        hidden_states.fill_(1.27)
+
         # all-gather hidden_states
         hidden_states_list = [
             torch.empty((N_ranks[i], hidden_states.shape[1]),
