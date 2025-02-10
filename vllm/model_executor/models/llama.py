@@ -413,7 +413,7 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        hidden_states.fill_(1.5)
+        # hidden_states.fill_(1.5)
 
         # hidden_states_temp = hidden_states
         # N_ulysses = N_ranks[self.sp_rank]
@@ -430,7 +430,7 @@ class LlamaModel(nn.Module):
             hidden_states, residual = layer(positions, hidden_states, N_ranks,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
-        residual = hidden_states
+        # residual = hidden_states
 
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
