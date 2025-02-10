@@ -641,6 +641,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             N_ranks[i] += 1
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
+        global N_test
+        N_test = N_ulysses
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
