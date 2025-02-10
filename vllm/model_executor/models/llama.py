@@ -659,7 +659,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
 
-        self.qkv_ = torch.empty((8192, 512 + 2 * 128),
+        self.qkv_ = torch.empty((16384, 512 + 2 * 128),
                                 dtype=torch.bfloat16,
                                 device=get_sp_group().device)
 
