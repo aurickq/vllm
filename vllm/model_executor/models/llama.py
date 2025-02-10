@@ -205,7 +205,7 @@ class LlamaAttention(nn.Module):
     ) -> torch.Tensor:
 
         global N_test
-        hidden_states.fill_(N_ranks[0])
+        hidden_states.fill_(N_ranks[1])
         # hidden_states.fill_(N_test)
         # hidden_states.fill_(hidden_states.shape[0])
 
