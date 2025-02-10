@@ -189,6 +189,7 @@ class FlashAttentionImpl(AttentionImpl):
         # Minimize the PyTorch ops in this method as much as possible.
         # Whenever making a change in this method, please benchmark the
         # performance to make sure it does not introduce any overhead.
+        print("FlashAttentionImpl.forward")
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
