@@ -210,16 +210,28 @@ class LlamaAttention(nn.Module):
 
         # return hidden_states
 
+        N_ulysses = N_ranks[self.sp_rank]
+        N = N_ranks.sum()
+
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
 
-        # attention
-        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
+        qkv_ = torch.empty(
+            (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
+            dtype=qkv.dtype,
+            device=qkv.device) + q.sum() + k.sum() + v.sum()
 
-        return hidden_states + q.sum() + k.sum() + v.sum() + attn_output.sum()
+        q_, k_, v_ = qkv_.split([self.q_size, self.kv_size, self.kv_size] //
+                                self.sp_size,
+                                dim=-1)
+
+        # attention
+        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
+
+        return hidden_states + attn_output.sum()
 
         N_ulysses = N_ranks[self.sp_rank]
         # pack send buffer
@@ -658,7 +670,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         if torch.distributed.get_rank() == 0:
             print(f"input_ids: {input_ids.shape}")
             print(f"positions: {positions.shape}")
-            print(f"N {N}, SP {SP}, N_ranks {N_ranks}")
+            print(f"N {N}, SP {SP}, N_ranks {N_ranks} \
+                N_ranks_tensor {N_ranks_tensor}")
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
