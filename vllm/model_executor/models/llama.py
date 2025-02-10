@@ -413,14 +413,15 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        hidden_states_temp = hidden_states
+        # hidden_states_temp = hidden_states
         # hidden_states.fill_(1.5)
 
         # hidden_states_temp = hidden_states
-        # N_ulysses = N_ranks[self.sp_rank]
-        # hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
-        #                             dtype=hidden_states.dtype,
-        #                             device=hidden_states.device)
+        N_ulysses = N_ranks[self.sp_rank]
+        hidden_states = torch.zeros(
+            (N_ulysses, hidden_states.shape[1]),
+            dtype=hidden_states.dtype,
+            device=hidden_states.device) + hidden_states.sum()
         # positions = torch.rand(N_ulysses,
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
@@ -441,20 +442,19 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
-        return hidden_states_temp + hidden_states.sum()
         # all-gather hidden_states
-        # hidden_states_list = [
-        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
-        #                 dtype=hidden_states.dtype,
-        #                 device=hidden_states.device)
-        #     for i in range(self.sp_size)
-        # ]
-        # torch.distributed.all_gather(hidden_states_list,
-        #                              hidden_states,
-        #                              group=get_sp_group().device_group)
-        # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
-        #
-        # return hidden_states_temp + hidden_states.sum()
+        hidden_states_list = [
+            torch.empty((N_ranks[i], hidden_states.shape[1]),
+                        dtype=hidden_states.dtype,
+                        device=hidden_states.device)
+            for i in range(self.sp_size)
+        ]
+        torch.distributed.all_gather(hidden_states_list,
+                                     hidden_states,
+                                     group=get_sp_group().device_group)
+        hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
+
+        return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
                                                    torch.Tensor]]) -> Set[str]:
