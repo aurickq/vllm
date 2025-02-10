@@ -204,8 +204,8 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
-        global N_test
-        hidden_states.fill_(N_ranks[3])
+        N = N_ranks.sum()
+        hidden_states.fill_(N.item())
         # hidden_states.fill_(N_test)
         # hidden_states.fill_(hidden_states.shape[0])
 
