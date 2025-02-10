@@ -198,7 +198,8 @@ class LlamaAttention(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        N_ranks: List[int],
+        # N_ranks: List[int],
+        N_ranks: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
@@ -323,7 +324,8 @@ class LlamaDecoderLayer(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        N_ranks: List[int],
+        # N_ranks: List[int],
+        N_ranks: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -407,7 +409,8 @@ class LlamaModel(nn.Module):
         self,
         input_ids: Optional[torch.Tensor],
         positions: torch.Tensor,
-        N_ranks: List[int],
+        # N_ranks: List[int],
+        N_ranks: torch.Tensor,
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
         intermediate_tensors: Optional[IntermediateTensors],
@@ -472,6 +475,8 @@ class LlamaModel(nn.Module):
         #                              hidden_states,
         #                              group=get_sp_group().device_group)
         # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
+
+        hidden_states.fill_(N_ranks[0])
 
         return hidden_states
 
@@ -644,6 +649,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             N_ranks[i] += 1
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
+
+        N_ranks = torch.tensor(N_ranks,
+                               dtype=torch.int,
+                               device=input_ids.device)
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
