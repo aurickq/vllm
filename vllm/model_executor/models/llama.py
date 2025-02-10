@@ -660,6 +660,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
 
+        self.qkv_ = torch.empty((8192, 512 + 2 * 128),
+                                dtype=torch.bfloat16,
+                                device='cuda')
+
     def _init_model(self, vllm_config: VllmConfig, prefix: str = ""):
         return LlamaModel(vllm_config=vllm_config, prefix=prefix)
 
@@ -698,11 +702,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        qkv_ = torch.empty((N, 512 + 2 * 128),
-                           dtype=torch.bfloat16,
-                           device=input_ids.device)
-        model_output = self.model(input_ids, positions, N_ranks_tensor, qkv_,
-                                  kv_caches, attn_metadata,
+        model_output = self.model(input_ids, positions, N_ranks_tensor,
+                                  self.qkv_[0:N], kv_caches, attn_metadata,
                                   intermediate_tensors, inputs_embeds)
 
         # all-gather model_output
