@@ -92,6 +92,9 @@ class LlamaMLP(nn.Module):
         return x
 
 
+N_test = 5
+
+
 class LlamaAttention(nn.Module):
 
     def __init__(self,
@@ -200,7 +203,9 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
-        hidden_states.fill_(N_ranks[0])
+        global N_test
+        # hidden_states.fill_(N_ranks[0])
+        hidden_states.fill_(N_test)
 
         return hidden_states
         N_ulysses = N_ranks[self.sp_rank]
