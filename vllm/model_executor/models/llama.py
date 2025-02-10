@@ -221,11 +221,12 @@ class LlamaAttention(nn.Module):
         # attention
         # attn_output = self.attn(q, k, v, kv_cache,
         #                         attn_metadata) + q.sum() + k.sum() + v.sum()
+        attn_output = torch.ones_like(q) + k.sum() + v.sum()
 
         # output projection
-        output, _ = self.o_proj(q)
+        output, _ = self.o_proj(attn_output)
 
-        return output + k.sum() + v.sum()
+        return output
 
         return hidden_states + q.sum() + k.sum() + v.sum()
 
