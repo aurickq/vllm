@@ -477,8 +477,8 @@ class LlamaModel(nn.Module):
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
 
-        # for i in range(0, 1):
-        for i in range(self.start_layer, self.end_layer):
+        for i in range(0, 1):
+            # for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(
                 positions,
@@ -701,12 +701,12 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
-        # if torch.distributed.get_rank() == 0:
-        #     print(f"input_ids: {input_ids.shape}")
-        #     print(f"positions: {positions.shape}")
-        #     print(f"N {N}, SP {SP}, N_ranks {N_ranks} \
-        #         N_ranks_tensor {N_ranks_tensor}")
-        #     print(f"{sum(N_ranks)} {N_ranks_tensor.sum()}")
+        if torch.distributed.get_rank() == 0:
+            print(f"input_ids: {input_ids.shape}")
+            print(f"positions: {positions.shape}")
+            print(f"N {N}, SP {SP}, N_ranks {N_ranks} \
+                N_ranks_tensor {N_ranks_tensor}")
+            print(f"{sum(N_ranks)} {N_ranks_tensor.sum()}")
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
