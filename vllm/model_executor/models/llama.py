@@ -704,6 +704,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         #     (N, model_output.shape[1]),
         #     dtype=model_output.dtype,
         #     device=model_output.device) + model_output.sum()
+        torch.distributed.barrier()
         if torch.distributed.get_rank() == 0:
             print(f"model_output: {model_output.shape}")
             print(f"model_output: {model_output}")
