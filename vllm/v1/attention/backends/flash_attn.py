@@ -192,7 +192,6 @@ class FlashAttentionImpl(AttentionImpl):
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward query {query.shape} \
               key {key.shape} value {value.shape} kv_cache {kv_cache.shape}")
-        # return output
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
