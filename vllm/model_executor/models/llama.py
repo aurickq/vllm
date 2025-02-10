@@ -200,6 +200,8 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
+        hidden_states = N_ranks[0]
+
         return hidden_states
         N_ulysses = N_ranks[self.sp_rank]
 
@@ -331,9 +333,9 @@ class LlamaDecoderLayer(nn.Module):
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
         # Fully Connected
-        hidden_states, residual = self.post_attention_layernorm(
-            hidden_states, residual)
-        hidden_states = self.mlp(hidden_states)
+        # hidden_states, residual = self.post_attention_layernorm(
+        #     hidden_states, residual)
+        # hidden_states = self.mlp(hidden_states)
 
         return hidden_states, residual
 
@@ -442,7 +444,7 @@ class LlamaModel(nn.Module):
                 "residual": residual
             })
 
-        hidden_states, _ = self.norm(hidden_states, residual)
+        # hidden_states, _ = self.norm(hidden_states, residual)
 
         # N = positions.shape[0]
         # hidden_states = torch.empty(
