@@ -413,6 +413,7 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
+        hidden_states_temp = hidden_states
         # hidden_states.fill_(1.5)
 
         # hidden_states_temp = hidden_states
@@ -440,7 +441,7 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
-        return hidden_states
+        return hidden_states_temp + hidden_states.sum()
         # all-gather hidden_states
         # hidden_states_list = [
         #     torch.empty((N_ranks[i], hidden_states.shape[1]),
@@ -622,8 +623,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
-        N_start = sum(N_ranks[:self.model.sp_rank])
-        N_ulysses = N_ranks[self.model.sp_rank]
+        # N_start = sum(N_ranks[:self.model.sp_rank])
+        # N_ulysses = N_ranks[self.model.sp_rank]
 
         # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         # input_ids = input_ids.view
@@ -632,22 +633,22 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             print(f"positions: {positions.shape}")
             print(f"N {N}, SP {SP}, N_ranks {N_ranks}")
 
-        input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
+        # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
 
         # all-gather model_output
-        model_output_list = [
-            torch.empty((N_ranks[i], model_output.shape[1]),
-                        dtype=model_output.dtype,
-                        device=model_output.device)
-            for i in range(get_sp_group().world_size)
-        ]
-        torch.distributed.all_gather(model_output_list,
-                                     model_output,
-                                     group=get_sp_group().device_group)
-        model_output = torch.cat(model_output_list)  # + hidden_states.sum()
+        # model_output_list = [
+        #     torch.empty((N_ranks[i], model_output.shape[1]),
+        #                 dtype=model_output.dtype,
+        #                 device=model_output.device)
+        #     for i in range(get_sp_group().world_size)
+        # ]
+        # torch.distributed.all_gather(model_output_list,
+        #                              model_output,
+        #                              group=get_sp_group().device_group)
+        # model_output = torch.cat(model_output_list)  # + hidden_states.sum()
         # model_output = torch.ones(
         #     (N, model_output.shape[1]),
         #     dtype=model_output.dtype,
