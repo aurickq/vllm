@@ -200,6 +200,7 @@ class LlamaAttention(nn.Module):
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
 
+        return hidden_states
         N_ulysses = N_ranks[self.sp_rank]
 
         # qkv projection
@@ -324,11 +325,11 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
-        # hidden_states = self.self_attn(positions=positions,
-        #                                hidden_states=hidden_states,
-        #                                N_ranks=N_ranks,
-        #                                kv_cache=kv_cache,
-        #                                attn_metadata=attn_metadata)
+        hidden_states = self.self_attn(positions=positions,
+                                       hidden_states=hidden_states,
+                                       N_ranks=N_ranks,
+                                       kv_cache=kv_cache,
+                                       attn_metadata=attn_metadata)
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
