@@ -223,7 +223,7 @@ class LlamaAttention(nn.Module):
         #                         attn_metadata) + q.sum() + k.sum() + v.sum()
 
         # output projection
-        output, _ = self.o_proj(hidden_states) + q.sum() + k.sum() + v.sum()
+        output, _ = self.o_proj(q) + k.sum() + v.sum()
 
         return output
 
