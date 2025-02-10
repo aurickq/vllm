@@ -148,8 +148,8 @@ class Attention(nn.Module):
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
-        if torch.distributed.get_rank() == 0:
-            print(f"Attention layer: {self.layer_name}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"Attention layer: {self.layer_name}")
         return query + key.sum() + value.sum()
         if self.calculate_kv_scales and \
             attn_metadata.enable_kv_scales_calculation:
