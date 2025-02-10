@@ -324,11 +324,11 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
-        hidden_states = self.self_attn(positions=positions,
-                                       hidden_states=hidden_states,
-                                       N_ranks=N_ranks,
-                                       kv_cache=kv_cache,
-                                       attn_metadata=attn_metadata)
+        # hidden_states = self.self_attn(positions=positions,
+        #                                hidden_states=hidden_states,
+        #                                N_ranks=N_ranks,
+        #                                kv_cache=kv_cache,
+        #                                attn_metadata=attn_metadata)
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
@@ -424,12 +424,12 @@ class LlamaModel(nn.Module):
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
 
-        # for i in range(0, 1):
-        #     # for i in range(self.start_layer, self.end_layer):
-        #     layer = self.layers[i]
-        #    hidden_states, residual = layer(positions, hidden_states, N_ranks,
-        #                                     kv_caches[i - self.start_layer],
-        #                                     attn_metadata, residual)
+        for i in range(0, 1):
+            # for i in range(self.start_layer, self.end_layer):
+            layer = self.layers[i]
+            hidden_states, residual = layer(positions, hidden_states, N_ranks,
+                                            kv_caches[i - self.start_layer],
+                                            attn_metadata, residual)
         residual = hidden_states
 
         if not get_pp_group().is_last_rank:
