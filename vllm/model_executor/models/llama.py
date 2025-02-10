@@ -418,8 +418,8 @@ class LlamaModel(nn.Module):
         hidden_states = torch.ones(
             (N_ulysses, hidden_states.shape[1]),
             dtype=hidden_states.dtype,
-            device=hidden_states.device
-        ) + hidden_states[:N_ulysses]  # hidden_states.sum()
+            device=hidden_states.device) + hidden_states[
+                0:N_ulysses]  # hidden_states.sum()
         # positions = torch.rand(N_ulysses,
         #                        dtype=positions.dtype,
         #                        device=positions.device) + positions.sum()
