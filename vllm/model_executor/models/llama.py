@@ -415,7 +415,7 @@ class LlamaModel(nn.Module):
 
         # hidden_states_temp = hidden_states
 
-        return torch.zeros_like(hidden_states)
+        return torch.ones_like(hidden_states)
         hidden_states_temp = hidden_states
         N_ulysses = N_ranks[self.sp_rank]
         hidden_states = torch.empty((N_ulysses, hidden_states.shape[1]),
