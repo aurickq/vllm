@@ -228,10 +228,11 @@ class LlamaAttention(nn.Module):
             self.q_size // self.sp_size, self.kv_size // self.sp_size,
             self.kv_size // self.sp_size
         ],
-                                dim=-1) + q.sum() + k.sum() + v.sum()
+                                dim=-1)
 
         # attention
-        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
+        attn_output = self.attn(q_, k_, v_, kv_cache,
+                                attn_metadata) + q.sum() + k.sum() + v.sum()
 
         return hidden_states + attn_output.sum()
 
