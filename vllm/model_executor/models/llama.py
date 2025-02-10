@@ -214,6 +214,8 @@ class LlamaAttention(nn.Module):
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        # positional embeddings
+        q, k = self.rotary_emb(positions, q, k)
 
         return hidden_states + q.sum() + k.sum() + v.sum()
 
@@ -240,9 +242,6 @@ class LlamaAttention(nn.Module):
             self.kv_size // self.sp_size
         ],
                                 dim=-1)
-
-        # positional embeddings
-        q_, k_ = self.rotary_emb(positions, q_, k_)
 
         # attention
         attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
@@ -476,7 +475,7 @@ class LlamaModel(nn.Module):
         #                              group=get_sp_group().device_group)
         # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
-        hidden_states.fill_(N_ranks[0])
+        hidden_states.fill_(N_ranks.sum())
 
         return hidden_states
 
@@ -662,6 +661,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             print(f"N {N}, SP {SP}, N_ranks {N_ranks}")
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
+        positions = torch.narrow(positions, 0, N_start, N_ulysses)
         model_output = self.model(input_ids, positions, N_ranks, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
