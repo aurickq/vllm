@@ -190,6 +190,42 @@ class FlashAttentionImpl(AttentionImpl):
         # Whenever making a change in this method, please benchmark the
         # performance to make sure it does not introduce any overhead.
 
+        from vllm.distributed.parallel_state import get_sp_group
+        from vllm.model_executor.models.llama import test_global
+        N_ranks = test_global
+        N = sum(N_ranks)
+        SP = get_sp_group().world_size
+
+        if torch.distributed.get_rank() == 0:
+            print(f"FlashAttentionImpl.forward q {query.shape} \
+            k {key.shape} v {value.shape} output {output.shape} \
+            kv_cache {kv_cache.shape} N {N} SP {SP} N_ranks {N_ranks}")
+            # traceback.print_stack()
+        query_temp = query
+        key_temp = key
+        value_temp = value
+        output_temp = output
+
+        query = torch.zeros((N, self.num_heads // SP, self.head_size),
+                            dtype=query.dtype,
+                            device=query.device)
+        key = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+                          dtype=key.dtype,
+                          device=key.device)
+        value = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+                            dtype=value.dtype,
+                            device=value.device)
+        output = torch.zeros((N, self.num_heads // SP * self.head_size),
+                             dtype=output.dtype,
+                             device=output.device)
+        query += query_temp.sum()
+        key += key_temp.sum()
+        value += value_temp.sum()
+
+        if torch.distributed.get_rank() == 0:
+            print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
+            output_ {output.shape}")
+
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
         # NOTE(woosuk): Here, key and value are padded while slot_mapping is
@@ -210,43 +246,6 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Compute attention and update output up to `num_actual_tokens`.
         if not attn_metadata.use_cascade:
-
-            from vllm.distributed.parallel_state import get_sp_group
-            from vllm.model_executor.models.llama import test_global
-            N_ranks = test_global
-            N = sum(N_ranks)
-            SP = get_sp_group().world_size
-
-            if torch.distributed.get_rank() == 0:
-                print(f"FlashAttentionImpl.forward q {query.shape} \
-                k {key.shape} v {value.shape} output {output.shape} \
-                kv_cache {kv_cache.shape} N {N} SP {SP} N_ranks {N_ranks}")
-                # traceback.print_stack()
-            query_temp = query
-            key_temp = key
-            value_temp = value
-            output_temp = output
-
-            query = torch.zeros((N, self.num_heads // SP, self.head_size),
-                                dtype=query.dtype,
-                                device=query.device)
-            key = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
-                              dtype=key.dtype,
-                              device=key.device)
-            value = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
-                                dtype=value.dtype,
-                                device=value.device)
-            output = torch.zeros((N, self.num_heads // SP * self.head_size),
-                                 dtype=output.dtype,
-                                 device=output.device)
-            query += query_temp.sum()
-            key += key_temp.sum()
-            value += value_temp.sum()
-
-            if torch.distributed.get_rank() == 0:
-                print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
-                output_ {output.shape} num_actual_tokens {num_actual_tokens}")
-
             # Regular attention (common case).
             flash_attn_varlen_func(
                 q=query[:num_actual_tokens],
@@ -265,7 +264,6 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-
             output = output_temp + output.sum()
             return output
 
