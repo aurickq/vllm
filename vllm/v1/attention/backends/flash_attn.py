@@ -177,10 +177,11 @@ class FlashAttentionImpl(AttentionImpl):
         """
         assert output is not None, "Output tensor must be provided."
 
+        from vllm.attention.backends.flash_attn import test_global
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward query {query.shape} \
               key {key.shape} value {value.shape} output {output.shape} \
-              kv_cache {kv_cache.shape}")
+              kv_cache {kv_cache.shape} test_global {test_global}")
             # traceback.print_stack()
 
         if attn_metadata is None:
