@@ -213,9 +213,15 @@ class FlashAttentionImpl(AttentionImpl):
 
             from vllm.distributed.parallel_state import get_sp_group
             from vllm.model_executor.models.llama import test_global
-            N = sum(test_global)
+            N_ranks = test_global
+            N = sum(N_ranks)
             SP = get_sp_group().world_size
 
+            if torch.distributed.get_rank() == 0:
+                print(f"FlashAttentionImpl.forward q {query.shape} \
+                k {key.shape} v {value.shape} output {output.shape} \
+                kv_cache {kv_cache.shape} N {N} SP {SP} N_ranks {N_ranks}")
+                # traceback.print_stack()
             query_temp = query
             key_temp = key
             value_temp = value
@@ -238,12 +244,8 @@ class FlashAttentionImpl(AttentionImpl):
             value += value_temp.sum()
 
             if torch.distributed.get_rank() == 0:
-                print(f"FlashAttentionImpl.forward query {query.shape} \
-                key {key.shape} value {value.shape} output {output.shape} \
-                kv_cache {kv_cache.shape} test_global {test_global}")
-                # traceback.print_stack()
-            if torch.distributed.get_rank() == 0:
-                print(f"num_actual_tokens {num_actual_tokens} N {N} ")
+                print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
+                output_ {output.shape} num_actual_tokens {num_actual_tokens}")
 
             # Regular attention (common case).
             flash_attn_varlen_func(
