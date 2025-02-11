@@ -227,25 +227,11 @@ class LlamaAttention(nn.Module):
         # ],
         #                              dim=-1)
 
-        q_ = torch.empty(N_ulysses,
-                         self.q_size // self.sp_size,
-                         dtype=q.dtype,
-                         device=q.device) + q.sum()
-        k_ = torch.empty(N_ulysses,
-                         self.kv_size // self.sp_size,
-                         dtype=k.dtype,
-                         device=k.device) + k.sum()
-        v_ = torch.empty(N_ulysses,
-                         self.kv_size // self.sp_size,
-                         dtype=v.dtype,
-                         device=v.device) + v.sum()
-
         # attention
-        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
+        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
 
-        c = q + attn_output.sum()
         # output projection
-        output, _ = self.o_proj(c)
+        output, _ = self.o_proj(attn_output)
 
         return output
 
