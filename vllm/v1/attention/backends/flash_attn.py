@@ -282,9 +282,8 @@ class FlashAttentionImpl(AttentionImpl):
                 c_,
                 input_split_sizes=N_ranks,
                 group=get_sp_group().device_group)
-            c = torch.transpose(c, 0,
-                                1).view(N_ulysses,
-                                        self.num_heads * SP * self.head_size)
+            c = torch.transpose(c, 0, 1).reshape(
+                N_ulysses, self.num_heads * SP * self.head_size)
             return c
 
         # Cascade attention (rare case).
