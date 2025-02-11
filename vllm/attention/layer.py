@@ -152,12 +152,20 @@ class Attention(nn.Module):
             attn_metadata.enable_kv_scales_calculation:
             self.calc_kv_scales(key, value)
         if self.use_output:
-            if torch.distributed.get_rank() == 0:
-                print(f"Attention layer: {self.layer_name} \
-                query: {query.shape} key: {key.shape} value: {value.shape}")
-            return query + key.sum() + value.sum()
             output = torch.empty_like(query)
             hidden_size = query.size(-1)
+
+            query = torch.empty((16384, 4096),
+                                dtype=query.dtype,
+                                device=query.device)
+            key = torch.empty((16384, 1024),
+                              dtype=key.dtype,
+                              device=key.device)
+            value = torch.empty((16384, 1024),
+                                dtype=value.dtype,
+                                device=value.device)
+            output_ = torch.empty_like(query)
+
             # Reshape the query, key, and value tensors.
             # NOTE(woosuk): We do this outside the custom op to minimize the
             # CPU overheads from the non-CUDA-graph regions.
@@ -172,7 +180,7 @@ class Attention(nn.Module):
                                               self.layer_name)
             else:
                 torch.ops.vllm.unified_attention_with_output(
-                    query, key, value, output, self.layer_name)
+                    query, key, value, output_, self.layer_name)
             return output.view(-1, hidden_size)
         else:
             if self.use_direct_call:
