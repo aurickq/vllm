@@ -155,13 +155,11 @@ class Attention(nn.Module):
             output = torch.empty_like(query)
             hidden_size = query.size(-1)
 
-            query = torch.empty((16384, 4096),
+            query = torch.empty((2048, 4096),
                                 dtype=query.dtype,
                                 device=query.device)
-            key = torch.empty((16384, 1024),
-                              dtype=key.dtype,
-                              device=key.device)
-            value = torch.empty((16384, 1024),
+            key = torch.empty((2048, 1024), dtype=key.dtype, device=key.device)
+            value = torch.empty((2048, 1024),
                                 dtype=value.dtype,
                                 device=value.device)
             output_ = torch.empty_like(query)
@@ -179,8 +177,9 @@ class Attention(nn.Module):
                 unified_attention_with_output(query, key, value, output,
                                               self.layer_name)
             else:
-                torch.ops.vllm.unified_attention_with_output(
-                    query, key, value, output_, self.layer_name)
+                pass
+                # torch.ops.vllm.unified_attention_with_output(
+                #     query, key, value, output_, self.layer_name)
             return output.view(-1, hidden_size) + output_.sum()
         else:
             if self.use_direct_call:
