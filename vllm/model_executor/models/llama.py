@@ -384,7 +384,7 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
-        hidden_states.fill_(N_ranks.sum())
+        # hidden_states.fill_(N_ranks.sum())
 
         return hidden_states
 
