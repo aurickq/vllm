@@ -273,7 +273,6 @@ class LlamaDecoderLayer(nn.Module):
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        return hidden_states, hidden_states
         # Self Attention
         if residual is None:
             residual = hidden_states
@@ -281,6 +280,7 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
+        return hidden_states, residual
         # hidden_states = self.self_attn(positions=positions,
         #                                hidden_states=hidden_states,
         #                                kv_cache=kv_cache,
