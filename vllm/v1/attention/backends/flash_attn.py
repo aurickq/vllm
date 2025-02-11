@@ -229,7 +229,8 @@ class FlashAttentionImpl(AttentionImpl):
         value += value_temp.sum()
 
         if torch.distributed.get_rank() == 0:
-            print(f"q_ {query.shape}\n \
+            print(f"\n \
+                    q_ {query.shape}\n \
                     v_ {value.shape}\n \
                     k_ {key.shape}\n \
                     output_ {output.shape}")
