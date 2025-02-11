@@ -201,91 +201,15 @@ class LlamaAttention(nn.Module):
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
-
-        # hidden_states.fill_(N_ranks.sum())
-        # hidden_states.fill_(N_test)
-        # hidden_states.fill_(hidden_states.shape[0])
-
-        # return hidden_states
-
-        N_ulysses = N_ranks[self.sp_rank]
-
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
-
-        # q_, k_, v_ = self.qkv_.split([
-        #     self.q_size // self.sp_size, self.kv_size // self.sp_size,
-        #     self.kv_size // self.sp_size
-        # ],
-        #                              dim=-1)
-
         # attention
         attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
-
         # output projection
         output, _ = self.o_proj(attn_output)
-
-        return output
-
-        # return hidden_states + q.sum() + k.sum() + v.sum()
-
-        # qkv_ = torch.empty(
-        #     (N, (self.q_size + 2 * self.kv_size) // self.sp_size),
-        #     dtype=qkv.dtype,
-        #     device=qkv.device) + q.sum() + k.sum() + v.sum()
-
-        # q_, k_, v_ = qkv_.split([
-        #     self.q_size // self.sp_size, self.kv_size // self.sp_size,
-        #     self.kv_size // self.sp_size
-        # ],
-        #                         dim=-1)
-
-        return hidden_states  # + attn_output.sum()
-
-        N_ulysses = N_ranks[self.sp_rank]
-        # pack send buffer
-        qkv = torch.cat(
-            (q.view((N_ulysses, self.sp_size, self.q_size // self.sp_size)),
-             k.view((N_ulysses, self.sp_size, self.kv_size // self.sp_size)),
-             v.view((N_ulysses, self.sp_size, self.kv_size // self.sp_size))),
-            dim=-1).transpose(0, 1).contiguous()
-        # communication
-        qkv_ = torch.empty((positions.shape[0],
-                            (self.q_size + 2 * self.kv_size) // self.sp_size),
-                           dtype=qkv.dtype,
-                           device=qkv.device)
-        # torch.distributed.all_to_all_single(qkv_,
-        #                                     qkv,
-        #                                     output_split_sizes=N_ranks,
-        #                                     group=get_sp_group().device_group)
-        qkv_ += qkv.sum()
-        # unpack receive buffer
-        q_, k_, v_ = qkv_.split([
-            self.q_size // self.sp_size, self.kv_size // self.sp_size,
-            self.kv_size // self.sp_size
-        ],
-                                dim=-1)
-
-        # attention
-        attn_output = self.attn(q_, k_, v_, kv_cache, attn_metadata)
-
-        # communication
-        c = torch.empty((self.sp_size, N_ulysses, self.q_size // self.sp_size),
-                        dtype=hidden_states.dtype,
-                        device=hidden_states.device)
-        # torch.distributed.all_to_all_single(c,
-        #                                     attn_output,
-        #                                     input_split_sizes=N_ranks,
-        #                                     group=get_sp_group().device_group)
-        c += attn_output.sum()
-        c = torch.transpose(c, 0, 1).reshape(N_ulysses, self.q_size)
-
-        # output projection
-        output, _ = self.o_proj(c)
-
         return output
 
 
@@ -456,20 +380,6 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        # return hidden_states
-        # hidden_states_temp = hidden_states
-        # hidden_states.fill_(1.5)
-
-        # hidden_states_temp = hidden_states
-        # N_ulysses = N_ranks[self.sp_rank]
-        # hidden_states = torch.zeros(
-        #     (N_ulysses, hidden_states.shape[1]),
-        #     dtype=hidden_states.dtype,
-        #     device=hidden_states.device) + hidden_states.sum()
-        # positions = torch.rand(N_ulysses,
-        #                        dtype=positions.dtype,
-        #                        device=positions.device) + positions.sum()
-
         for i in range(0, 1):
             # for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
@@ -490,25 +400,6 @@ class LlamaModel(nn.Module):
             })
 
         hidden_states, _ = self.norm(hidden_states, residual)
-
-        # N = positions.shape[0]
-        # hidden_states = torch.empty(
-        #     (N, hidden_states.shape[1]),
-        #     dtype=hidden_states.dtype,
-        #     device=hidden_states.device) + hidden_states.sum()
-        # hidden_states.fill_(sum(N_ranks))
-
-        # all-gather hidden_states
-        # hidden_states_list = [
-        #     torch.empty((N_ranks[i], hidden_states.shape[1]),
-        #                 dtype=hidden_states.dtype,
-        #                 device=hidden_states.device)
-        #     for i in range(self.sp_size)
-        # ]
-        # torch.distributed.all_gather(hidden_states_list,
-        #                              hidden_states,
-        #                              group=get_sp_group().device_group)
-        # hidden_states = torch.cat(hidden_states_list)  # + hidden_states.sum()
 
         hidden_states.fill_(N_ranks.sum())
 
