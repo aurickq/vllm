@@ -195,6 +195,8 @@ class FlashAttentionImpl(AttentionImpl):
         N_ranks = test_global
         N = sum(N_ranks)
         SP = get_sp_group().world_size
+        SP_rank = get_sp_group().rank_in_group
+        N_ulysses = N_ranks[SP_rank]
 
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward \n \
@@ -222,7 +224,8 @@ class FlashAttentionImpl(AttentionImpl):
                             dtype=value.dtype,
                             device=value.device)
 
-        output = torch.zeros_like(query)
+        c_ = torch.zeros_like(query)
+
         #all-to-all here
         query += query_temp.sum()
         key += key_temp.sum()
@@ -233,7 +236,7 @@ class FlashAttentionImpl(AttentionImpl):
                     q_ {query.shape}\n \
                     v_ {value.shape}\n \
                     k_ {key.shape}\n \
-                    output_ {output.shape}")
+                    c_ {c_.shape}")
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
@@ -260,7 +263,7 @@ class FlashAttentionImpl(AttentionImpl):
                 q=query[:num_actual_tokens],
                 k=key_cache,
                 v=value_cache,
-                out=output[:num_actual_tokens],
+                out=c_[:num_actual_tokens],
                 cu_seqlens_q=attn_metadata.query_start_loc,
                 max_seqlen_q=attn_metadata.max_query_len,
                 seqused_k=attn_metadata.seq_lens,
@@ -273,9 +276,18 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
+
             # all-to-all here
-            output = query_temp + output.sum()
-            return output
+            c = output.view(SP, N_ulysses, self.num_heads // SP,
+                            self.head_size)
+            torch.distributed.all_to_all_single(
+                c,
+                c_,
+                input_split_sizes=N_ranks,
+                group=get_sp_group().device_group)
+            c = torch.transpose(c, 0, 1).view(N_ulysses,
+                                              self.num_heads * self.head_size)
+            return c
 
         # Cascade attention (rare case).
         cascade_attention(

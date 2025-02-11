@@ -191,11 +191,6 @@ class LlamaAttention(nn.Module):
             prefix=f"{prefix}.attn",
         )
 
-        # self.qkv_ = torch.empty(
-        #     (16384, (self.q_size + 2 * self.kv_size) // self.sp_size),
-        #     dtype=torch.bfloat16,
-        #     device='cuda')
-
     def forward(
         self,
         positions: torch.Tensor,
