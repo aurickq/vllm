@@ -166,7 +166,7 @@ class Attention(nn.Module):
                                 device=value.device)
             output_ = torch.empty_like(query)
             global test_global
-            test_global = 5
+            test_global += 5
 
             # Reshape the query, key, and value tensors.
             # NOTE(woosuk): We do this outside the custom op to minimize the
