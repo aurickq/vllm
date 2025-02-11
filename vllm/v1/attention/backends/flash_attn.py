@@ -198,18 +198,18 @@ class FlashAttentionImpl(AttentionImpl):
         SP_rank = get_sp_group().rank_in_group
         N_ulysses = N_ranks[SP_rank]
 
-        if torch.distributed.get_rank() == 0:
-            print(f"FlashAttentionImpl.forward \n \
-            q {query.shape}\n \
-            k {key.shape}\n \
-            v {value.shape}\n \
-            output {output.shape}\n \
-            kv_cache {kv_cache.shape} \
-            N {N} SP {SP} N_ranks {N_ranks}\n \
-            self.num_heads {self.num_heads}\n \
-            self.num_kv_heads {self.num_kv_heads}\n \
-            self.head_size {self.head_size}\n")
-            # traceback.print_stack()
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"FlashAttentionImpl.forward \n \
+        #     q {query.shape}\n \
+        #     k {key.shape}\n \
+        #     v {value.shape}\n \
+        #     output {output.shape}\n \
+        #     kv_cache {kv_cache.shape} \
+        #     N {N} SP {SP} N_ranks {N_ranks}\n \
+        #     self.num_heads {self.num_heads}\n \
+        #     self.num_kv_heads {self.num_kv_heads}\n \
+        #     self.head_size {self.head_size}\n")
+        # traceback.print_stack()
 
         # Ulysses all-to-all 1/2
         # pack
@@ -239,13 +239,13 @@ class FlashAttentionImpl(AttentionImpl):
         v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
         c_ = torch.empty_like(q_)
 
-        if torch.distributed.get_rank() == 0:
-            print(f"\n \
-                    q_ {q_.shape}\n \
-                    k_ {k_.shape}\n \
-                    v_ {v_.shape}\n \
-                    c_ {c_.shape}\n \
-                    num_actual_tokens {attn_metadata.num_actual_tokens}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"\n \
+        #             q_ {q_.shape}\n \
+        #             k_ {k_.shape}\n \
+        #             v_ {v_.shape}\n \
+        #             c_ {c_.shape}\n \
+        #             num_actual_tokens {attn_metadata.num_actual_tokens}")
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
