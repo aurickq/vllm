@@ -533,12 +533,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         self.make_empty_intermediate_tensors = (
             self.model.make_empty_intermediate_tensors)
 
-        self.N_ranks_tensor = torch.empty((get_sp_group().world_size, ), \
-                            dtype=torch.int, device=get_sp_group().device)
-        # self.qkv_ = torch.empty((16384, 512 + 2 * 128),
-        #                         dtype=torch.bfloat16,
-        #                         device=get_sp_group().device)
-
     def _init_model(self, vllm_config: VllmConfig, prefix: str = ""):
         return LlamaModel(vllm_config=vllm_config, prefix=prefix)
 
@@ -556,12 +550,13 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
+        SP_rank = get_sp_group().rank_in_group
         global N_ranks
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
-        N_start = sum(N_ranks[:self.model.sp_rank])
-        N_ulysses = N_ranks[self.model.sp_rank]
+        N_start = sum(N_ranks[:SP_rank])
+        N_ulysses = N_ranks[SP_rank]
 
         if torch.distributed.get_rank() == 0:
             print(f"input_ids: {input_ids.shape}")
@@ -575,7 +570,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output = self.model(input_ids, positions, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
-
         # all-gather model_output
         model_output_list = [
             torch.empty((N_ranks[i], model_output.shape[1]),
