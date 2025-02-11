@@ -191,8 +191,7 @@ class FlashAttentionImpl(AttentionImpl):
         # performance to make sure it does not introduce any overhead.
 
         from vllm.distributed.parallel_state import get_sp_group
-        from vllm.model_executor.models.llama import test_global
-        N_ranks = test_global
+        from vllm.model_executor.models.llama import N_ranks
         N = sum(N_ranks)
         SP = get_sp_group().world_size
         SP_rank = get_sp_group().rank_in_group
@@ -276,17 +275,16 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-
-            # all-to-all here
-            c = output.view(SP, N_ulysses, self.num_heads // SP,
-                            self.head_size)
+            # Ulysses all-to-all here
+            c = output.view(SP, N_ulysses, self.num_heads, self.head_size)
             torch.distributed.all_to_all_single(
                 c,
                 c_,
                 input_split_sizes=N_ranks,
                 group=get_sp_group().device_group)
-            c = torch.transpose(c, 0, 1).view(N_ulysses,
-                                              self.num_heads * self.head_size)
+            c = torch.transpose(c, 0,
+                                1).view(N_ulysses,
+                                        self.num_heads * SP * self.head_size)
             return c
 
         # Cascade attention (rare case).

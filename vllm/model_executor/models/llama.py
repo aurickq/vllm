@@ -580,7 +580,7 @@ class LlamaModel(nn.Module):
         return loaded_params
 
 
-test_global = 10
+N_ranks = None
 
 
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
@@ -687,14 +687,13 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
+        global N_ranks
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
 
-        global test_global
-        test_global = N_ranks
         # N_ranks_tensor = torch.tensor(N_ranks,
         #                               dtype=torch.int,
         #                               device=input_ids.device)
