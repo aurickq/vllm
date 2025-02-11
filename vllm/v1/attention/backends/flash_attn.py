@@ -177,13 +177,6 @@ class FlashAttentionImpl(AttentionImpl):
         """
         assert output is not None, "Output tensor must be provided."
 
-        from vllm.model_executor.models.llama import test_global
-        if torch.distributed.get_rank() == 0:
-            print(f"FlashAttentionImpl.forward query {query.shape} \
-              key {key.shape} value {value.shape} output {output.shape} \
-              kv_cache {kv_cache.shape} test_global {test_global}")
-            # traceback.print_stack()
-
         if attn_metadata is None:
             # Profiling run.
             return output
@@ -217,6 +210,15 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Compute attention and update output up to `num_actual_tokens`.
         if not attn_metadata.use_cascade:
+
+            from vllm.model_executor.models.llama import test_global
+            if torch.distributed.get_rank() == 0:
+                print(f"FlashAttentionImpl.forward query {query.shape} \
+                key {key.shape} value {value.shape} output {output.shape} \
+                kv_cache {kv_cache.shape} test_global {test_global}")
+                # traceback.print_stack()
+            if torch.distributed.get_rank() == 0:
+                print(f"num_actual_tokens {num_actual_tokens}")
             # Regular attention (common case).
             flash_attn_varlen_func(
                 q=query[:num_actual_tokens],
