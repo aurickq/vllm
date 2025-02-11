@@ -155,31 +155,22 @@ class Attention(nn.Module):
             output = torch.empty_like(query)
             hidden_size = query.size(-1)
 
-            query = torch.empty((2048, 4096),
-                                dtype=query.dtype,
-                                device=query.device)
-            key = torch.empty((2048, 1024), dtype=key.dtype, device=key.device)
-            value = torch.empty((2048, 1024),
-                                dtype=value.dtype,
-                                device=value.device)
-            output_ = torch.empty_like(query)
-
             # Reshape the query, key, and value tensors.
             # NOTE(woosuk): We do this outside the custom op to minimize the
             # CPU overheads from the non-CUDA-graph regions.
-            query = query.view(-1, self.num_heads, self.head_size)
-            output_ = output_.view(-1, self.num_heads, self.head_size)
-            if key is not None:
-                key = key.view(-1, self.num_kv_heads, self.head_size)
-            if value is not None:
-                value = value.view(-1, self.num_kv_heads, self.head_size)
+            # query = query.view(-1, self.num_heads, self.head_size)
+            # output_ = output_.view(-1, self.num_heads, self.head_size)
+            # if key is not None:
+            #     key = key.view(-1, self.num_kv_heads, self.head_size)
+            # if value is not None:
+            #     value = value.view(-1, self.num_kv_heads, self.head_size)
             if self.use_direct_call:
                 unified_attention_with_output(query, key, value, output,
                                               self.layer_name)
             else:
                 torch.ops.vllm.unified_attention_with_output(
-                    query, key, value, output_, self.layer_name)
-            return output.view(-1, hidden_size) + output_.sum()
+                    query, key, value, output, self.layer_name)
+            return output.view(-1, hidden_size)
         else:
             if self.use_direct_call:
                 return unified_attention(query, key, value, self.layer_name)
