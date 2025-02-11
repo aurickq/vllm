@@ -219,12 +219,10 @@ class FlashAttentionImpl(AttentionImpl):
         value = torch.zeros((N, self.num_kv_heads, self.head_size),
                             dtype=value.dtype,
                             device=value.device)
-        output = torch.zeros((N, self.num_heads * self.head_size),
-                             dtype=output.dtype,
-                             device=output.device)
         query += query_temp.sum()
         key += key_temp.sum()
         value += value_temp.sum()
+        output = torch.zeros_like(query)
 
         if torch.distributed.get_rank() == 0:
             print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
