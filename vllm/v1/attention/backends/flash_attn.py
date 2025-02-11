@@ -180,7 +180,8 @@ class FlashAttentionImpl(AttentionImpl):
 
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward query {query.shape} \
-              key {key.shape} value {value.shape} kv_cache {kv_cache.shape}")
+              key {key.shape} value {value.shape} output {output.shape} \
+              kv_cache {kv_cache.shape}")
             traceback.print_stack()
 
         if attn_metadata is None:
