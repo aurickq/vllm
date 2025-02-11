@@ -1,5 +1,4 @@
 """Attention layer with FlashAttention."""
-import traceback
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -182,7 +181,7 @@ class FlashAttentionImpl(AttentionImpl):
             print(f"FlashAttentionImpl.forward query {query.shape} \
               key {key.shape} value {value.shape} output {output.shape} \
               kv_cache {kv_cache.shape}")
-            traceback.print_stack()
+            # traceback.print_stack()
 
         if attn_metadata is None:
             # Profiling run.
