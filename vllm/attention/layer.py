@@ -148,13 +148,14 @@ class Attention(nn.Module):
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
-        print(f"Attention layer: {self.layer_name} \
-                query: {query.shape} key: {key.shape} value: {value.shape}")
-        return query + key.sum() + value.sum()
         if self.calculate_kv_scales and \
             attn_metadata.enable_kv_scales_calculation:
             self.calc_kv_scales(key, value)
         if self.use_output:
+            if torch.distributed.get_rank() == 0:
+                print(f"Attention layer: {self.layer_name} \
+                query: {query.shape} key: {key.shape} value: {value.shape}")
+            return query + key.sum() + value.sum()
             output = torch.empty_like(query)
             hidden_size = query.size(-1)
             # Reshape the query, key, and value tensors.
