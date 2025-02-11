@@ -209,32 +209,42 @@ class FlashAttentionImpl(AttentionImpl):
             self.num_kv_heads {self.num_kv_heads}\n \
             self.head_size {self.head_size}\n")
             # traceback.print_stack()
-        query_temp = query
-        key_temp = key
-        value_temp = value
+        # query_temp = query
+        # key_temp = key
+        # value_temp = value
 
-        query = torch.zeros((N, self.num_heads, self.head_size),
-                            dtype=query.dtype,
-                            device=query.device)
-        key = torch.zeros((N, self.num_kv_heads, self.head_size),
-                          dtype=key.dtype,
-                          device=key.device)
-        value = torch.zeros((N, self.num_kv_heads, self.head_size),
-                            dtype=value.dtype,
-                            device=value.device)
+        qkv_ = torch.empty(
+            (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
+            dtype=query.dtype,
+            device=query.device) + query.sum() + key.sum() + value.sum()
+        #all-to-all here
 
+        q_, k_, v_ = qkv_.split([
+            self.num_heads * self.head_size, self.num_kv_heads *
+            self.head_size, self.num_kv_heads * self.head_size
+        ],
+                                dim=1)
         c_ = torch.zeros_like(query)
 
-        #all-to-all here
-        query += query_temp.sum()
-        key += key_temp.sum()
-        value += value_temp.sum()
+        # query = torch.zeros((N, self.num_heads, self.head_size),
+        #                     dtype=query.dtype,
+        #                     device=query.device)
+        # key = torch.zeros((N, self.num_kv_heads, self.head_size),
+        #                   dtype=key.dtype,
+        #                   device=key.device)
+        # value = torch.zeros((N, self.num_kv_heads, self.head_size),
+        #                     dtype=value.dtype,
+        #                     device=value.device)
+
+        # query += query_temp.sum()
+        # key += key_temp.sum()
+        # value += value_temp.sum()
 
         if torch.distributed.get_rank() == 0:
             print(f"\n \
-                    q_ {query.shape}\n \
-                    v_ {value.shape}\n \
-                    k_ {key.shape}\n \
+                    q_ {q_.shape}\n \
+                    k_ {k_.shape}\n \
+                    v_ {v_.shape}\n \
                     c_ {c_.shape}")
 
         num_actual_tokens = attn_metadata.num_actual_tokens
@@ -245,8 +255,8 @@ class FlashAttentionImpl(AttentionImpl):
         # the slot_mapping's shape to determine the number of actual tokens.
         key_cache, value_cache = kv_cache.unbind(0)
         torch.ops._C_cache_ops.reshape_and_cache_flash(
-            key,
-            value,
+            k_,
+            v_,
             key_cache,
             value_cache,
             attn_metadata.slot_mapping,
@@ -259,7 +269,7 @@ class FlashAttentionImpl(AttentionImpl):
         if not attn_metadata.use_cascade:
             # Regular attention (common case).
             flash_attn_varlen_func(
-                q=query[:num_actual_tokens],
+                q=q_[:num_actual_tokens],
                 k=key_cache,
                 v=value_cache,
                 out=c_[:num_actual_tokens],
@@ -275,7 +285,7 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-            # Ulysses all-to-all here
+            # Ulysses all-to-all 2/2
             c = output.view(SP, N_ulysses, self.num_heads, self.head_size)
             torch.distributed.all_to_all_single(
                 c,
