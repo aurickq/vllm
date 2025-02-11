@@ -585,14 +585,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
 
-        # N_ranks_tensor = torch.tensor(N_ranks,
-        #                               dtype=torch.int,
-        #                               device=input_ids.device)
-        for i in range(SP):
-            self.N_ranks_tensor[i] = N_ranks[i]
-
-        # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
-        # input_ids = input_ids.view
         if torch.distributed.get_rank() == 0:
             print(f"input_ids: {input_ids.shape}")
             print(f"positions: {positions.shape}")
@@ -602,10 +594,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        # qkv_ = torch.narrow(self.qkv_, 0, 0, N)
-        # qkv_ = torch.empty((N, 512 + 2 * 128),
-        #                    dtype=torch.bfloat16,
-        #                    device=input_ids.device)
         model_output = self.model(
             input_ids,
             positions,
@@ -619,17 +607,12 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output_list = [
             torch.empty((N_ranks[i], model_output.shape[1]),
                         dtype=model_output.dtype,
-                        device=model_output.device)
-            for i in range(get_sp_group().world_size)
+                        device=model_output.device) for i in range(SP)
         ]
         torch.distributed.all_gather(model_output_list,
                                      model_output,
                                      group=get_sp_group().device_group)
         model_output = torch.cat(model_output_list)  # + hidden_states.sum()
-        # model_output = torch.ones(
-        #     (N, model_output.shape[1]),
-        #     dtype=model_output.dtype,
-        #     device=model_output.device) + model_output.sum()
         if torch.distributed.get_rank() == 0:
             print(f"model_output: {model_output.shape}")
             print(f"model_output: {model_output}")
