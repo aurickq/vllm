@@ -244,7 +244,8 @@ class FlashAttentionImpl(AttentionImpl):
                     q_ {q_.shape}\n \
                     k_ {k_.shape}\n \
                     v_ {v_.shape}\n \
-                    c_ {c_.shape}")
+                    c_ {c_.shape}\n \
+                    num_actual_tokens {attn_metadata.num_actual_tokens}")
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
