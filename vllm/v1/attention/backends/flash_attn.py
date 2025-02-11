@@ -226,9 +226,9 @@ class FlashAttentionImpl(AttentionImpl):
             self.head_size, self.num_kv_heads * self.head_size
         ],
                                 dim=1)
-        q_.reshape(N, self.num_heads, self.head_size)
-        k_.reshape(N, self.num_kv_heads, self.head_size)
-        v_.reshape(N, self.num_kv_heads, self.head_size)
+        q_ = q_.reshape(N, self.num_heads, self.head_size)
+        k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
+        v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
         c_ = torch.zeros_like(query)
 
         # query = torch.zeros((N, self.num_heads, self.head_size),
