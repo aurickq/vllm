@@ -221,10 +221,12 @@ class FlashAttentionImpl(AttentionImpl):
         value = torch.zeros((N, self.num_kv_heads, self.head_size),
                             dtype=value.dtype,
                             device=value.device)
+
+        output = torch.zeros_like(query)
+        #all-to-all here
         query += query_temp.sum()
         key += key_temp.sum()
         value += value_temp.sum()
-        output = torch.zeros_like(query)
 
         if torch.distributed.get_rank() == 0:
             print(f"q_ {query.shape}\n \
@@ -270,7 +272,9 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-            return query_temp + output.sum()
+            # all-to-all here
+            output = query_temp + output.sum()
+            return output
 
         # Cascade attention (rare case).
         cascade_attention(
