@@ -230,8 +230,6 @@ class FlashAttentionImpl(AttentionImpl):
             print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
             output_ {output.shape}")
 
-        return query_temp
-
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
         # NOTE(woosuk): Here, key and value are padded while slot_mapping is
@@ -270,8 +268,7 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-            output = query_temp + output.sum()
-            return output
+            return query_temp + output.sum()
 
         # Cascade attention (rare case).
         cascade_attention(
