@@ -195,9 +195,6 @@ class LlamaAttention(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        # N_ranks: List[int],
-        N_ranks: torch.Tensor,
-        # qkv_: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
@@ -273,9 +270,6 @@ class LlamaDecoderLayer(nn.Module):
         self,
         positions: torch.Tensor,
         hidden_states: torch.Tensor,
-        # N_ranks: List[int],
-        N_ranks: torch.Tensor,
-        # qkv_: torch.Tensor,
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
         residual: Optional[torch.Tensor],
@@ -287,13 +281,10 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
-        hidden_states = self.self_attn(
-            positions=positions,
-            hidden_states=hidden_states,
-            N_ranks=N_ranks,
-            # qkv_=qkv_,
-            kv_cache=kv_cache,
-            attn_metadata=attn_metadata)
+        hidden_states = self.self_attn(positions=positions,
+                                       hidden_states=hidden_states,
+                                       kv_cache=kv_cache,
+                                       attn_metadata=attn_metadata)
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
@@ -361,9 +352,6 @@ class LlamaModel(nn.Module):
         self,
         input_ids: Optional[torch.Tensor],
         positions: torch.Tensor,
-        # N_ranks: List[int],
-        N_ranks: torch.Tensor,
-        # qkv_: torch.Tensor,
         kv_caches: List[torch.Tensor],
         attn_metadata: AttentionMetadata,
         intermediate_tensors: Optional[IntermediateTensors],
@@ -594,14 +582,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
-        model_output = self.model(
-            input_ids,
-            positions,
-            self.N_ranks_tensor,  # qkv_,
-            kv_caches,
-            attn_metadata,
-            intermediate_tensors,
-            inputs_embeds)
+        model_output = self.model(input_ids, positions, kv_caches,
+                                  attn_metadata, intermediate_tensors,
+                                  inputs_embeds)
 
         # all-gather model_output
         model_output_list = [

@@ -221,7 +221,7 @@ class FlashAttentionImpl(AttentionImpl):
         qkv_ = torch.empty(
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
-            device=query.device) + qkv.sum()
+            device=query.device)
         # all-to-all
         torch.distributed.all_to_all_single(qkv_,
                                             qkv,
@@ -232,7 +232,7 @@ class FlashAttentionImpl(AttentionImpl):
             self.num_heads * self.head_size, self.num_kv_heads *
             self.head_size, self.num_kv_heads * self.head_size
         ],
-                                dim=1)
+                                dim=-1)
         # prepare
         q_ = q_.reshape(N, self.num_heads, self.head_size)
         k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
