@@ -699,7 +699,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_ulysses = N_ranks[self.model.sp_rank]
 
         global test_global
-        test_global = N_ulysses
+        test_global = N_ranks
         # N_ranks_tensor = torch.tensor(N_ranks,
         #                               dtype=torch.int,
         #                               device=input_ids.device)
