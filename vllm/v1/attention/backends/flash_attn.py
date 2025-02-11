@@ -210,9 +210,6 @@ class FlashAttentionImpl(AttentionImpl):
             self.num_kv_heads {self.num_kv_heads}\n \
             self.head_size {self.head_size}\n")
             # traceback.print_stack()
-        # query_temp = query
-        # key_temp = key
-        # value_temp = value
 
         # Ulysses all-to-all 1/2
         # pack
