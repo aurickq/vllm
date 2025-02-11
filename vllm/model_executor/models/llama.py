@@ -364,8 +364,8 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
-        for i in range(0, 1):
-            # for i in range(self.start_layer, self.end_layer):
+        # for i in range(0, 1):
+        for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(positions, hidden_states,
                                             kv_caches[i - self.start_layer],
@@ -557,10 +557,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_start = sum(N_ranks[:SP_rank])
         N_ulysses = N_ranks[SP_rank]
 
-        if torch.distributed.get_rank() == 0:
-            print(f"input_ids: {input_ids.shape}")
-            print(f"positions: {positions.shape}")
-            print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"input_ids: {input_ids.shape}")
+        #     print(f"positions: {positions.shape}")
+        #     print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
@@ -577,9 +577,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
                                      model_output,
                                      group=get_sp_group().device_group)
         model_output = torch.cat(model_output_list)  # + hidden_states.sum()
-        if torch.distributed.get_rank() == 0:
-            print(f"model_output: {model_output.shape}")
-            print(f"model_output: {model_output}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"model_output: {model_output.shape}")
+        #     print(f"model_output: {model_output}")
 
         return model_output
 
