@@ -190,6 +190,7 @@ class FlashAttentionImpl(AttentionImpl):
         # Whenever making a change in this method, please benchmark the
         # performance to make sure it does not introduce any overhead.
 
+        # Ulysses Attention
         from vllm.distributed.parallel_state import get_sp_group
         from vllm.model_executor.models.llama import N_ranks
         N = sum(N_ranks)
@@ -213,17 +214,20 @@ class FlashAttentionImpl(AttentionImpl):
         # key_temp = key
         # value_temp = value
 
+        # Ulysses all--all 1/2
         qkv_ = torch.empty(
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
             device=query.device) + query.sum() + key.sum() + value.sum()
-        #all-to-all here
 
         q_, k_, v_ = qkv_.split([
             self.num_heads * self.head_size, self.num_kv_heads *
             self.head_size, self.num_kv_heads * self.head_size
         ],
                                 dim=1)
+        q_.contiguous()
+        k_.contiguous()
+        v_.contiguous()
         c_ = torch.zeros_like(query)
 
         # query = torch.zeros((N, self.num_heads, self.head_size),
