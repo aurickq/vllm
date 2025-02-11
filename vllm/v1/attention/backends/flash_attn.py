@@ -211,14 +211,40 @@ class FlashAttentionImpl(AttentionImpl):
         # Compute attention and update output up to `num_actual_tokens`.
         if not attn_metadata.use_cascade:
 
+            from vllm.distributed.parallel_state import get_sp_group
             from vllm.model_executor.models.llama import test_global
+            N = sum(test_global)
+            SP = get_sp_group().world_size
+
+            query_temp = query
+            key_temp = key
+            value_temp = value
+            output_temp = output
+
+            query = torch.zeros((N, self.num_heads // SP, self.head_size),
+                                dtype=query.dtype,
+                                device=query.device)
+            key = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+                              dtype=key.dtype,
+                              device=key.device)
+            value = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+                                dtype=value.dtype,
+                                device=value.device)
+            output = torch.zeros((N, self.num_heads // SP * self.head_size),
+                                 dtype=output.dtype,
+                                 device=output.device)
+            query += query_temp.sum()
+            key += key_temp.sum()
+            value += value_temp.sum()
+
             if torch.distributed.get_rank() == 0:
                 print(f"FlashAttentionImpl.forward query {query.shape} \
                 key {key.shape} value {value.shape} output {output.shape} \
                 kv_cache {kv_cache.shape} test_global {test_global}")
                 # traceback.print_stack()
             if torch.distributed.get_rank() == 0:
-                print(f"num_actual_tokens {num_actual_tokens}")
+                print(f"num_actual_tokens {num_actual_tokens} N {N} ")
+
             # Regular attention (common case).
             flash_attn_varlen_func(
                 q=query[:num_actual_tokens],
@@ -237,6 +263,8 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
+
+            output = output_temp + output.sum()
             return output
 
         # Cascade attention (rare case).
