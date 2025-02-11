@@ -180,8 +180,6 @@ class FlashAttentionImpl(AttentionImpl):
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward query {query.shape} \
               key {key.shape} value {value.shape} kv_cache {kv_cache.shape}")
-        output = query + key.sum() + value.sum()
-        return output
 
         if attn_metadata is None:
             # Profiling run.
