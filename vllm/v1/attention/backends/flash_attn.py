@@ -210,16 +210,16 @@ class FlashAttentionImpl(AttentionImpl):
         key_temp = key
         value_temp = value
 
-        query = torch.zeros((N, self.num_heads // SP, self.head_size),
+        query = torch.zeros((N, self.num_heads, self.head_size),
                             dtype=query.dtype,
                             device=query.device)
-        key = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+        key = torch.zeros((N, self.num_kv_heads, self.head_size),
                           dtype=key.dtype,
                           device=key.device)
-        value = torch.zeros((N, self.num_kv_heads // SP, self.head_size),
+        value = torch.zeros((N, self.num_kv_heads, self.head_size),
                             dtype=value.dtype,
                             device=value.device)
-        output = torch.zeros((N, self.num_heads // SP * self.head_size),
+        output = torch.zeros((N, self.num_heads * self.head_size),
                              dtype=output.dtype,
                              device=output.device)
         query += query_temp.sum()
