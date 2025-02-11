@@ -111,8 +111,7 @@ class LlamaAttention(nn.Module):
         layer_idx = extract_layer_index(prefix)
         self.hidden_size = hidden_size
         tp_size = get_tp_group().world_size
-        self.sp_size = get_sp_group().world_size
-        self.sp_rank = get_sp_group().rank_in_group
+        sp_size = get_sp_group().world_size
         self.total_num_heads = num_heads
         assert self.total_num_heads % tp_size == 0
         self.num_heads = num_heads // tp_size
@@ -181,10 +180,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads // self.sp_size,
+            self.num_heads // sp_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads // self.sp_size,
+            num_kv_heads=self.num_kv_heads // sp_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
@@ -561,9 +560,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         if torch.distributed.get_rank() == 0:
             print(f"input_ids: {input_ids.shape}")
             print(f"positions: {positions.shape}")
-            print(f"N {N}, SP {SP}, N_ranks {N_ranks} \
-                N_ranks_tensor {self.N_ranks_tensor}")
-            print(f"{sum(N_ranks)} {self.N_ranks_tensor.sum()}")
+            print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
 
         input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
         positions = torch.narrow(positions, 0, N_start, N_ulysses)
