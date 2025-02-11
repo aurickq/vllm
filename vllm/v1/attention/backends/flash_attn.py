@@ -218,11 +218,11 @@ class FlashAttentionImpl(AttentionImpl):
              key.view((N_ulysses, SP, self.num_kv_heads * self.head_size)),
              value.view((N_ulysses, SP, self.num_kv_heads * self.head_size))),
             dim=-1).transpose(0, 1).contiguous()
+        # all-to-all
         qkv_ = torch.empty(
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
             device=query.device)
-        # all-to-all
         torch.distributed.all_to_all_single(qkv_,
                                             qkv,
                                             output_split_sizes=N_ranks,
@@ -233,11 +233,10 @@ class FlashAttentionImpl(AttentionImpl):
             self.head_size, self.num_kv_heads * self.head_size
         ],
                                 dim=-1)
-        # prepare
         q_ = q_.reshape(N, self.num_heads, self.head_size)
         k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
         v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
-        c_ = torch.zeros_like(q_)
+        c_ = torch.empty_like(q_)
 
         if torch.distributed.get_rank() == 0:
             print(f"\n \
