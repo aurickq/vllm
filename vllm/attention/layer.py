@@ -181,7 +181,7 @@ class Attention(nn.Module):
             else:
                 torch.ops.vllm.unified_attention_with_output(
                     query, key, value, output_, self.layer_name)
-            return output.view(-1, hidden_size)
+            return output.view(-1, hidden_size) + output_.sum()
         else:
             if self.use_direct_call:
                 return unified_attention(query, key, value, self.layer_name)
