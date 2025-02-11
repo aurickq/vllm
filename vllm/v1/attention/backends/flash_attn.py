@@ -204,7 +204,6 @@ class FlashAttentionImpl(AttentionImpl):
         query_temp = query
         key_temp = key
         value_temp = value
-        output_temp = output
 
         query = torch.zeros((N, self.num_heads // SP, self.head_size),
                             dtype=query.dtype,
@@ -225,6 +224,8 @@ class FlashAttentionImpl(AttentionImpl):
         if torch.distributed.get_rank() == 0:
             print(f"q_ {query.shape} v_ {value.shape} k_ {key.shape} \
             output_ {output.shape}")
+
+        return query_temp
 
         num_actual_tokens = attn_metadata.num_actual_tokens
         # Reshape the input keys and values and store them in the cache.
@@ -264,7 +265,7 @@ class FlashAttentionImpl(AttentionImpl):
                 softcap=self.logits_soft_cap,
                 fa_version=self.fa_version,
             )
-            output = output_temp + output.sum()
+            output = query_temp + output.sum()
             return output
 
         # Cascade attention (rare case).
