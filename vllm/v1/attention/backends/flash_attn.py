@@ -232,7 +232,8 @@ class FlashAttentionImpl(AttentionImpl):
             self.num_heads * self.head_size, self.num_kv_heads *
             self.head_size, self.num_kv_heads * self.head_size
         ],
-                                dim=1)
+                                dim=-1)
+        # prepare
         q_ = q_.reshape(N, self.num_heads, self.head_size)
         k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
         v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
