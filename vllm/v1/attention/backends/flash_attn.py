@@ -216,16 +216,16 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Ulysses all-to-all 1/2
         # pack
-        qkv = query.sum() + key.sum() + value.sum()
-        # qkv = torch.cat(
-        #     (query.view((N_ulysses, SP, self.num)),
-        #      key.view((N_ulysses, SP, self.kv_size // self.sp_size)),
-        #      value.view((N_ulysses, SP, self.kv_size // self.sp_size))),
-        #     dim=-1).transpose(0, 1).contiguous()
+        # qkv = query.sum() + key.sum() + value.sum()
+        qkv = torch.cat(
+            (query.view((N_ulysses, SP, self.num_heads * self.head_size)),
+             key.view((N_ulysses, SP, self.num_kv_heads * self.head_size)),
+             value.view((N_ulysses, SP, self.num_kv_heads * self.head_size))),
+            dim=-1).transpose(0, 1).contiguous()
         qkv_ = torch.empty(
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
-            device=query.device) + qkv
+            device=query.device) + qkv.sum()
         # all-to-all here
         # unpack
         q_, k_, v_ = qkv_.split([
