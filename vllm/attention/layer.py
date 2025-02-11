@@ -16,8 +16,6 @@ from vllm.model_executor.layers.quantization.kv_cache import BaseKVCacheMethod
 from vllm.platforms import _Backend, current_platform
 from vllm.utils import direct_register_custom_op
 
-test_global = 10
-
 
 class Attention(nn.Module):
     """Attention layer.
@@ -165,8 +163,6 @@ class Attention(nn.Module):
                                 dtype=value.dtype,
                                 device=value.device)
             output_ = torch.empty_like(query)
-            global test_global
-            test_global += 5
 
             # Reshape the query, key, and value tensors.
             # NOTE(woosuk): We do this outside the custom op to minimize the

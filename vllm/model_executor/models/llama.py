@@ -585,6 +585,9 @@ class LlamaModel(nn.Module):
         return loaded_params
 
 
+test_global = 10
+
+
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     packed_modules_mapping = {
         "qkv_proj": ["q_proj", "k_proj", "v_proj"],
@@ -695,6 +698,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         N_start = sum(N_ranks[:self.model.sp_rank])
         N_ulysses = N_ranks[self.model.sp_rank]
 
+        global test_global
+        test_global = N_ulysses
         # N_ranks_tensor = torch.tensor(N_ranks,
         #                               dtype=torch.int,
         #                               device=input_ids.device)
