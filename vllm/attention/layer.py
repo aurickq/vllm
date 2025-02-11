@@ -155,7 +155,7 @@ class Attention(nn.Module):
             output = torch.empty_like(query)
             hidden_size = query.size(-1)
 
-            return output
+            return output.view(-1, hidden_size)
             # Reshape the query, key, and value tensors.
             # NOTE(woosuk): We do this outside the custom op to minimize the
             # CPU overheads from the non-CUDA-graph regions.
