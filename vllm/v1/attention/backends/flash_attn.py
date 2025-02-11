@@ -216,7 +216,6 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Ulysses all-to-all 1/2
         # pack
-        # qkv = query.sum() + key.sum() + value.sum()
         qkv = torch.cat(
             (query.view((N_ulysses, SP, self.num_heads * self.head_size)),
              key.view((N_ulysses, SP, self.num_kv_heads * self.head_size)),
@@ -226,31 +225,22 @@ class FlashAttentionImpl(AttentionImpl):
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
             device=query.device) + qkv.sum()
-        # all-to-all here
+        # all-to-all
+        torch.distributed.all_to_all_single(qkv_,
+                                            qkv,
+                                            output_split_sizes=N_ranks,
+                                            group=get_sp_group().device_group)
         # unpack
         q_, k_, v_ = qkv_.split([
             self.num_heads * self.head_size, self.num_kv_heads *
             self.head_size, self.num_kv_heads * self.head_size
         ],
                                 dim=1)
+        # prepare
         q_ = q_.reshape(N, self.num_heads, self.head_size)
         k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
         v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
         c_ = torch.zeros_like(q_)
-
-        # query = torch.zeros((N, self.num_heads, self.head_size),
-        #                     dtype=query.dtype,
-        #                     device=query.device)
-        # key = torch.zeros((N, self.num_kv_heads, self.head_size),
-        #                   dtype=key.dtype,
-        #                   device=key.device)
-        # value = torch.zeros((N, self.num_kv_heads, self.head_size),
-        #                     dtype=value.dtype,
-        #                     device=value.device)
-
-        # query += query_temp.sum()
-        # key += key_temp.sum()
-        # value += value_temp.sum()
 
         if torch.distributed.get_rank() == 0:
             print(f"\n \
