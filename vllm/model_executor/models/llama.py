@@ -571,13 +571,12 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output = self.model(input_ids, positions, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
-        # model_output = torch.narrow(model_output, 0, N_start, N_ulysses)
+        # all-gather model_output
         model_output_list = [
             torch.empty((N_ranks[i], self.config.hidden_size),
                         dtype=torch.bfloat16,
                         device=input_ids.device) for i in range(SP)
         ]
-        # all-gather model_output
         torch.distributed.all_gather(model_output_list,
                                      model_output,
                                      group=get_sp_group().device_group)
