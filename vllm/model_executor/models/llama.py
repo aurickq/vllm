@@ -559,10 +559,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # N_start = sum(N_ranks[:SP_rank])
         N_ulysses = N_ranks[SP_rank]
 
-        if torch.distributed.get_rank() == 0:
-            print(f"input_ids: {input_ids.shape}")
-            print(f"positions: {positions.shape}")
-            print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"input_ids: {input_ids.shape}")
+        #     print(f"positions: {positions.shape}")
+        #     print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
 
         input_ids = torch.narrow(input_ids, 0, 0, N_ulysses)
         positions = torch.narrow(positions, 0, 0, N_ulysses)
@@ -581,13 +581,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
                                      group=get_sp_group().device_group)
         model_output = torch.cat(
             model_output_list)  # .contiguous()  # + hidden_states.sum()
-        if torch.distributed.get_rank() == 0:
-            print(f"model_output: {model_output.shape}")
-            print(f"model_output: {model_output}")
-        # model_output = torch.empty(
-        #     (N, self.config.hidden_size),
-        #     dtype=model_output.dtype,
-        #     device=model_output.device) + model_output.sum()
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"model_output: {model_output.shape}")
+        #     print(f"model_output: {model_output}")
 
         return model_output
 
