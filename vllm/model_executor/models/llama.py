@@ -582,6 +582,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # if torch.distributed.get_rank() == 0:
         #     print(f"model_output: {model_output.shape}")
         #     print(f"model_output: {model_output}")
+        model_output = torch.empty(
+            (N, self.config.hidden_size),
+            dtype=model_output.dtype,
+            device=model_output.device) + model_output.sum()
 
         return model_output
 
