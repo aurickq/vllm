@@ -574,8 +574,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # all-gather model_output
         model_output_list = [
             torch.empty((N_ranks[i], self.config.hidden_size),
-                        dtype=torch.bfloat16,
-                        device=input_ids.device) for i in range(SP)
+                        dtype=model_output.dtype,
+                        device=model_output.device) for i in range(SP)
         ]
         torch.distributed.all_gather(model_output_list,
                                      model_output,
