@@ -555,7 +555,7 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         for i in range(N % SP):
             N_ranks[i] += 1
         SP_rank = get_sp_group().rank_in_group
-        N_start = sum(N_ranks[:SP_rank])
+        # N_start = sum(N_ranks[:SP_rank])
         N_ulysses = N_ranks[SP_rank]
 
         if torch.distributed.get_rank() == 0:
@@ -563,8 +563,14 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
             print(f"positions: {positions.shape}")
             print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
 
-        input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
-        positions = torch.narrow(positions, 0, N_start, N_ulysses)
+        # input_ids = torch.narrow(input_ids, 0, N_start, N_ulysses)
+        # positions = torch.narrow(positions, 0, N_start, N_ulysses)
+        input_ids = torch.empty(
+            (N_ulysses, 1), dtype=input_ids.dtype,
+            device=input_ids.device) + input_ids.sum()
+        positions = torch.empty(
+            (N_ulysses, 1), dtype=positions.dtype,
+            device=positions.device) + positions.sum()
         model_output = self.model(input_ids, positions, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
