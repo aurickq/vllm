@@ -11,7 +11,7 @@ from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
 from vllm.envs import VLLM_FLASH_ATTN_VERSION
 from vllm.logger import init_logger
-# from vllm.model_executor.models.llama import N  # , N_ranks
+from vllm.model_executor.models.llama import N  # , N_ranks
 from vllm.platforms import current_platform
 from vllm.utils import cdiv
 from vllm.vllm_flash_attn import (fa_version_unsupported_reason,
@@ -247,10 +247,6 @@ class FlashAttentionImpl(AttentionImpl):
         # q_ = q_.reshape(N, self.num_heads, self.head_size)
         # k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
         # v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
-        q_ = self.q_  #[:N]
-        k_ = self.k_  #[:N]
-        v_ = self.v_  #[:N]
-        c_ = self.c_  #[:N]
         # q_ = torch.empty((N, self.num_heads, self.head_size),
         #                  dtype=query.dtype,
         #                  device=query.device)
@@ -278,8 +274,8 @@ class FlashAttentionImpl(AttentionImpl):
         # the slot_mapping's shape to determine the number of actual tokens.
         key_cache, value_cache = kv_cache.unbind(0)
         torch.ops._C_cache_ops.reshape_and_cache_flash(
-            k_,  # [:N],
-            v_,  # [:N],
+            self.k_[:N],
+            self.v_[:N],
             key_cache,
             value_cache,
             attn_metadata.slot_mapping,
@@ -292,10 +288,10 @@ class FlashAttentionImpl(AttentionImpl):
         if not attn_metadata.use_cascade:
             # Regular attention (common case).
             flash_attn_varlen_func(
-                q=q_[:num_actual_tokens],
+                q=self.q_[:num_actual_tokens],
                 k=key_cache,
                 v=value_cache,
-                out=c_[:num_actual_tokens],
+                out=self.c_[:num_actual_tokens],
                 cu_seqlens_q=attn_metadata.query_start_loc,
                 max_seqlen_q=attn_metadata.max_query_len,
                 seqused_k=attn_metadata.seq_lens,
