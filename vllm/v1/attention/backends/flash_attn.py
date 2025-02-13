@@ -9,10 +9,8 @@ import triton.language as tl
 
 from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
-from vllm.distributed.parallel_state import get_sp_group
 from vllm.envs import VLLM_FLASH_ATTN_VERSION
 from vllm.logger import init_logger
-from vllm.model_executor.models.llama import N, N_ranks
 from vllm.platforms import current_platform
 from vllm.utils import cdiv
 from vllm.vllm_flash_attn import (fa_version_unsupported_reason,
@@ -205,24 +203,24 @@ class FlashAttentionImpl(AttentionImpl):
         # performance to make sure it does not introduce any overhead.
 
         # Ulysses Attention
-        # from vllm.distributed.parallel_state import get_sp_group
+        from vllm.distributed.parallel_state import get_sp_group
+        from vllm.model_executor.models.llama import N_ranks
 
-        global N_ranks
-        global N
         SP = get_sp_group().world_size
         SP_rank = get_sp_group().rank_in_group
+        N = sum(N_ranks)
         N_ulysses = N_ranks[SP_rank]
-        # if torch.distributed.get_rank() == 0:
-        #     print(f"FlashAttentionImpl.forward \n \
-        #     q {query.shape}\n \
-        #     k {key.shape}\n \
-        #     v {value.shape}\n \
-        #     output {output.shape}\n \
-        #     kv_cache {kv_cache.shape} \
-        #     N {N} SP {SP} N_ranks {N_ranks}\n \
-        #     self.num_heads {self.num_heads}\n \
-        #     self.num_kv_heads {self.num_kv_heads}\n \
-        #     self.head_size {self.head_size}\n")
+        if torch.distributed.get_rank() == 0:
+            print(f"FlashAttentionImpl.forward \n \
+            q {query.shape}\n \
+            k {key.shape}\n \
+            v {value.shape}\n \
+            output {output.shape}\n \
+            kv_cache {kv_cache.shape} \
+            N {N} SP {SP} N_ranks {N_ranks}\n \
+            self.num_heads {self.num_heads}\n \
+            self.num_kv_heads {self.num_kv_heads}\n \
+            self.head_size {self.head_size}\n")
         # traceback.print_stack()
         # Ulysses all-to-all 1/2
         # pack

@@ -451,7 +451,6 @@ class LlamaModel(nn.Module):
 
 
 N_ranks = None
-N = None
 
 
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
@@ -550,7 +549,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         intermediate_tensors: Optional[IntermediateTensors] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
-        global N
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
         global N_ranks
