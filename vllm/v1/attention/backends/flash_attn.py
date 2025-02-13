@@ -156,17 +156,17 @@ class FlashAttentionImpl(AttentionImpl):
 
         assert is_fa_version_supported(self.fa_version)
 
-        N = 16384
-        self.q_ = torch.empty((N, self.num_heads, self.head_size),
-                              dtype=torch.bfloat16,
-                              device='cuda')
-        self.k_ = torch.empty((N, self.num_kv_heads, self.head_size),
-                              dtype=torch.bfloat16,
-                              device='cuda')
-        self.v_ = torch.empty((N, self.num_kv_heads, self.head_size),
-                              dtype=torch.bfloat16,
-                              device='cuda')
-        self.c_ = torch.empty_like(self.q_)
+        # N = 16384
+        # self.q_ = torch.empty((N, self.num_heads, self.head_size),
+        #                       dtype=torch.bfloat16,
+        #                       device='cuda')
+        # self.k_ = torch.empty((N, self.num_kv_heads, self.head_size),
+        #                       dtype=torch.bfloat16,
+        #                       device='cuda')
+        # self.v_ = torch.empty((N, self.num_kv_heads, self.head_size),
+        #                       dtype=torch.bfloat16,
+        #                       device='cuda')
+        # self.c_ = torch.empty_like(self.q_)
 
     def forward(
         self,
