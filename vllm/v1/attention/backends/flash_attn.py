@@ -154,6 +154,18 @@ class FlashAttentionImpl(AttentionImpl):
 
         assert is_fa_version_supported(self.fa_version)
 
+        N = 16384
+        self.q_ = torch.empty((N, self.num_heads, self.head_size),
+                              dtype=torch.bfloat16,
+                              device='cuda')
+        self.k_ = torch.empty((N, self.num_kv_heads, self.head_size),
+                              dtype=torch.bfloat16,
+                              device='cuda')
+        self.v_ = torch.empty((N, self.num_kv_heads, self.head_size),
+                              dtype=torch.bfloat16,
+                              device='cuda')
+        self.c_ = torch.empty_like(self.q_)
+
     def forward(
         self,
         layer: torch.nn.Module,
@@ -192,7 +204,7 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Ulysses Attention
         # from vllm.distributed.parallel_state import get_sp_group
-        from vllm.model_executor.models.llama import N  # , N_ranks
+        # from vllm.model_executor.models.llama import N  # , N_ranks
 
         # SP = get_sp_group().world_size
         # SP_rank = get_sp_group().rank_in_group
@@ -235,16 +247,20 @@ class FlashAttentionImpl(AttentionImpl):
         # q_ = q_.reshape(N, self.num_heads, self.head_size)
         # k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
         # v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
-        q_ = torch.empty((N, self.num_heads, self.head_size),
-                         dtype=query.dtype,
-                         device=query.device)
-        k_ = torch.empty((N, self.num_kv_heads, self.head_size),
-                         dtype=key.dtype,
-                         device=key.device)
-        v_ = torch.empty((N, self.num_kv_heads, self.head_size),
-                         dtype=value.dtype,
-                         device=value.device)
-        c_ = torch.empty_like(q_)
+        q_ = self.q_
+        k_ = self.k_
+        v_ = self.v_
+        c_ = self.c_
+        # q_ = torch.empty((N, self.num_heads, self.head_size),
+        #                  dtype=query.dtype,
+        #                  device=query.device)
+        # k_ = torch.empty((N, self.num_kv_heads, self.head_size),
+        #                  dtype=key.dtype,
+        #                  device=key.device)
+        # v_ = torch.empty((N, self.num_kv_heads, self.head_size),
+        #                  dtype=value.dtype,
+        #                  device=value.device)
+        # c_ = torch.empty_like(q_)
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"\n \
