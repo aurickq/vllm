@@ -205,7 +205,8 @@ class FlashAttentionImpl(AttentionImpl):
         # performance to make sure it does not introduce any overhead.
 
         # Ulysses Attention
-
+        global N_ranks
+        global N
         SP = get_sp_group().world_size
         SP_rank = get_sp_group().rank_in_group
         N_ulysses = N_ranks[SP_rank]
