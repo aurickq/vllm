@@ -12,7 +12,6 @@ from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
 from vllm.distributed.parallel_state import get_sp_group
 from vllm.envs import VLLM_FLASH_ATTN_VERSION
 from vllm.logger import init_logger
-from vllm.model_executor.models.llama import N, N_ranks
 from vllm.platforms import current_platform
 from vllm.utils import cdiv
 from vllm.vllm_flash_attn import (fa_version_unsupported_reason,
@@ -156,6 +155,10 @@ class FlashAttentionImpl(AttentionImpl):
 
         assert is_fa_version_supported(self.fa_version)
 
+        self.SP = get_sp_group().world_size
+        self.SP_rank = get_sp_group().rank_in_group
+        self.device_group = get_sp_group().device_group
+
         # N = 16384
         # self.q_ = torch.empty((N, self.num_heads, self.head_size),
         #                       dtype=torch.bfloat16,
@@ -204,23 +207,23 @@ class FlashAttentionImpl(AttentionImpl):
         # Whenever making a change in this method, please benchmark the
         # performance to make sure it does not introduce any overhead.
 
-        # Ulysses Attention
-        global N_ranks
-        global N
-        SP = get_sp_group().world_size
-        SP_rank = get_sp_group().rank_in_group
+        from vllm.model_executor.models.llama import N, N_ranks
+        SP = self.SP
+        SP_rank = self.SP_rank
+        device_group = self.device_group
         N_ulysses = N_ranks[SP_rank]
-        if torch.distributed.get_rank() == 0:
-            print(f"FlashAttentionImpl.forward \n \
-            q {query.shape}\n \
-            k {key.shape}\n \
-            v {value.shape}\n \
-            output {output.shape}\n \
-            kv_cache {kv_cache.shape} \
-            N {N} SP {SP} N_ranks {N_ranks}\n \
-            self.num_heads {self.num_heads}\n \
-            self.num_kv_heads {self.num_kv_heads}\n \
-            self.head_size {self.head_size}\n")
+        # Ulysses Attention
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"FlashAttentionImpl.forward \n \
+        #     q {query.shape}\n \
+        #     k {key.shape}\n \
+        #     v {value.shape}\n \
+        #     output {output.shape}\n \
+        #     kv_cache {kv_cache.shape} \
+        #     N {N} SP {SP} N_ranks {N_ranks}\n \
+        #     self.num_heads {self.num_heads}\n \
+        #     self.num_kv_heads {self.num_kv_heads}\n \
+        #     self.head_size {self.head_size}\n")
         # traceback.print_stack()
         # Ulysses all-to-all 1/2
         # pack
@@ -237,7 +240,7 @@ class FlashAttentionImpl(AttentionImpl):
         torch.distributed.all_to_all_single(qkv_,
                                             qkv,
                                             output_split_sizes=N_ranks,
-                                            group=get_sp_group().device_group)
+                                            group=device_group)
         # unpack
         q_, k_, v_ = qkv_.split([
             self.num_heads * self.head_size, self.num_kv_heads *
@@ -307,11 +310,10 @@ class FlashAttentionImpl(AttentionImpl):
             )
             # Ulysses all-to-all 2/2
             c = output.view(SP, N_ulysses, self.num_heads, self.head_size)
-            torch.distributed.all_to_all_single(
-                c,
-                c_,
-                input_split_sizes=N_ranks,
-                group=get_sp_group().device_group)
+            torch.distributed.all_to_all_single(c,
+                                                c_,
+                                                input_split_sizes=N_ranks,
+                                                group=device_group)
             c = torch.transpose(c, 0, 1).reshape(
                 N_ulysses, self.num_heads * SP * self.head_size)
             return c
