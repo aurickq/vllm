@@ -204,11 +204,10 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Ulysses Attention
         from vllm.distributed.parallel_state import get_sp_group
-        from vllm.model_executor.models.llama import N_ranks
+        from vllm.model_executor.models.llama import N, N_ranks
 
         SP = get_sp_group().world_size
         SP_rank = get_sp_group().rank_in_group
-        N = sum(N_ranks)
         N_ulysses = N_ranks[SP_rank]
         if torch.distributed.get_rank() == 0:
             print(f"FlashAttentionImpl.forward \n \
