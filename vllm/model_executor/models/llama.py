@@ -450,8 +450,9 @@ class LlamaModel(nn.Module):
         return loaded_params
 
 
-N_ranks = None
 N = None
+N_ranks = None
+N_ulysses = None
 
 
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
@@ -558,8 +559,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         for i in range(N % SP):
             N_ranks[i] += 1
         SP_rank = get_sp_group().rank_in_group
-        N_start = sum(N_ranks[:SP_rank])
+        global N_ulysses
         N_ulysses = N_ranks[SP_rank]
+        N_start = sum(N_ranks[:SP_rank])
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"input_ids: {input_ids.shape}")
