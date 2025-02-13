@@ -380,7 +380,7 @@ class LlamaModel(nn.Module):
 
         hidden_states, _ = self.norm(hidden_states, residual)
 
-        # hidden_states.fill_(hidden_states.shape[0])
+        hidden_states.fill_(hidden_states.shape[0])
 
         return hidden_states
 
