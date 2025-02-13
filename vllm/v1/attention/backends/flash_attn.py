@@ -192,12 +192,11 @@ class FlashAttentionImpl(AttentionImpl):
 
         # Ulysses Attention
         # from vllm.distributed.parallel_state import get_sp_group
-        from vllm.model_executor.models.llama import N_ranks
-        N = sum(N_ranks)
+        from vllm.model_executor.models.llama import N  # , N_ranks
+
         # SP = get_sp_group().world_size
         # SP_rank = get_sp_group().rank_in_group
         # N_ulysses = N_ranks[SP_rank]
-
         # if torch.distributed.get_rank() == 0:
         #     print(f"FlashAttentionImpl.forward \n \
         #     q {query.shape}\n \
@@ -210,7 +209,6 @@ class FlashAttentionImpl(AttentionImpl):
         #     self.num_kv_heads {self.num_kv_heads}\n \
         #     self.head_size {self.head_size}\n")
         # traceback.print_stack()
-
         # Ulysses all-to-all 1/2
         # pack
         # qkv = torch.cat(
