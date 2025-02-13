@@ -11,7 +11,7 @@ from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
 from vllm.envs import VLLM_FLASH_ATTN_VERSION
 from vllm.logger import init_logger
-from vllm.model_executor.models.llama import N  # , N_ranks
+# from vllm.model_executor.models.llama import N  # , N_ranks
 from vllm.platforms import current_platform
 from vllm.utils import cdiv
 from vllm.vllm_flash_attn import (fa_version_unsupported_reason,
@@ -278,8 +278,8 @@ class FlashAttentionImpl(AttentionImpl):
         # the slot_mapping's shape to determine the number of actual tokens.
         key_cache, value_cache = kv_cache.unbind(0)
         torch.ops._C_cache_ops.reshape_and_cache_flash(
-            k_[:N],
-            v_[:N],
+            k_,  # [:N],
+            v_,  # [:N],
             key_cache,
             value_cache,
             attn_metadata.slot_mapping,
