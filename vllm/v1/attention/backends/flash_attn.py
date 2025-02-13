@@ -9,9 +9,10 @@ import triton.language as tl
 
 from vllm.attention.backends.abstract import (AttentionBackend, AttentionImpl,
                                               AttentionMetadata, AttentionType)
+from vllm.distributed.parallel_state import get_sp_group
 from vllm.envs import VLLM_FLASH_ATTN_VERSION
 from vllm.logger import init_logger
-from vllm.model_executor.models.llama import N  # , N_ranks
+from vllm.model_executor.models.llama import N, N_ranks
 from vllm.platforms import current_platform
 from vllm.utils import cdiv
 from vllm.vllm_flash_attn import (fa_version_unsupported_reason,
@@ -206,9 +207,9 @@ class FlashAttentionImpl(AttentionImpl):
         # Ulysses Attention
         # from vllm.distributed.parallel_state import get_sp_group
 
-        # SP = get_sp_group().world_size
-        # SP_rank = get_sp_group().rank_in_group
-        # N_ulysses = N_ranks[SP_rank]
+        SP = get_sp_group().world_size
+        SP_rank = get_sp_group().rank_in_group
+        N_ulysses = N_ranks[SP_rank]
         # if torch.distributed.get_rank() == 0:
         #     print(f"FlashAttentionImpl.forward \n \
         #     q {query.shape}\n \
@@ -223,30 +224,31 @@ class FlashAttentionImpl(AttentionImpl):
         # traceback.print_stack()
         # Ulysses all-to-all 1/2
         # pack
-        # qkv = torch.cat(
-        #     (query.view((N_ulysses, SP, self.num_heads * self.head_size)),
-        #      key.view((N_ulysses, SP, self.num_kv_heads * self.head_size)),
-        #      value.view((N_ulysses, SP, self.num_kv_heads * self.head_size))),
-        #     dim=-1).transpose(0, 1).contiguous()
+        qkv = torch.cat(
+            (query.view((N_ulysses, SP, self.num_heads * self.head_size)),
+             key.view((N_ulysses, SP, self.num_kv_heads * self.head_size)),
+             value.view((N_ulysses, SP, self.num_kv_heads * self.head_size))),
+            dim=-1).transpose(0, 1).contiguous()
         # all-to-all
-        # qkv_ = torch.empty(
-        #     (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
-        #     dtype=query.dtype,
-        #     device=query.device)
-        # torch.distributed.all_to_all_single(qkv_,
-        #                                     qkv,
-        #                                     output_split_sizes=N_ranks,
-        #                                     group=get_sp_group().device_group)
+        qkv_ = torch.empty(
+            (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
+            dtype=query.dtype,
+            device=query.device)
+        torch.distributed.all_to_all_single(qkv_,
+                                            qkv,
+                                            output_split_sizes=N_ranks,
+                                            group=get_sp_group().device_group)
         # unpack
-        # q_, k_, v_ = qkv_.split([
-        #     self.num_heads * self.head_size, self.num_kv_heads *
-        #     self.head_size, self.num_kv_heads * self.head_size
-        # ],
-        #                         dim=-1)
+        q_, k_, v_ = qkv_.split([
+            self.num_heads * self.head_size, self.num_kv_heads *
+            self.head_size, self.num_kv_heads * self.head_size
+        ],
+                                dim=-1)
         # prepare
-        # q_ = q_.reshape(N, self.num_heads, self.head_size)
-        # k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
-        # v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
+        q_ = q_.reshape(N, self.num_heads, self.head_size)
+        k_ = k_.reshape(N, self.num_kv_heads, self.head_size)
+        v_ = v_.reshape(N, self.num_kv_heads, self.head_size)
+        c_ = torch.empty_like(q_)
         # q_ = torch.empty((N, self.num_heads, self.head_size),
         #                  dtype=query.dtype,
         #                  device=query.device)
@@ -256,7 +258,6 @@ class FlashAttentionImpl(AttentionImpl):
         # v_ = torch.empty((N, self.num_kv_heads, self.head_size),
         #                  dtype=value.dtype,
         #                  device=value.device)
-        # c_ = torch.empty_like(q_)
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"\n \
@@ -274,8 +275,8 @@ class FlashAttentionImpl(AttentionImpl):
         # the slot_mapping's shape to determine the number of actual tokens.
         key_cache, value_cache = kv_cache.unbind(0)
         torch.ops._C_cache_ops.reshape_and_cache_flash(
-            self.k_[:N],
-            self.v_[:N],
+            k_,
+            v_,
             key_cache,
             value_cache,
             attn_metadata.slot_mapping,
@@ -288,10 +289,10 @@ class FlashAttentionImpl(AttentionImpl):
         if not attn_metadata.use_cascade:
             # Regular attention (common case).
             flash_attn_varlen_func(
-                q=self.q_[:num_actual_tokens],
+                q=q_[:num_actual_tokens],
                 k=key_cache,
                 v=value_cache,
-                out=self.c_[:num_actual_tokens],
+                out=c_[:num_actual_tokens],
                 cu_seqlens_q=attn_metadata.query_start_loc,
                 max_seqlen_q=attn_metadata.max_query_len,
                 seqused_k=attn_metadata.seq_lens,
@@ -305,15 +306,14 @@ class FlashAttentionImpl(AttentionImpl):
                 fa_version=self.fa_version,
             )
             # Ulysses all-to-all 2/2
-            # c = output.view(SP, N_ulysses, self.num_heads, self.head_size)
-            # torch.distributed.all_to_all_single(
-            #     c,
-            #     c_,
-            #     input_split_sizes=N_ranks,
-            #     group=get_sp_group().device_group)
-            # c = torch.transpose(c, 0, 1).reshape(
-            #     N_ulysses, self.num_heads * SP * self.head_size)
-            c = query
+            c = output.view(SP, N_ulysses, self.num_heads, self.head_size)
+            torch.distributed.all_to_all_single(
+                c,
+                c_,
+                input_split_sizes=N_ranks,
+                group=get_sp_group().device_group)
+            c = torch.transpose(c, 0, 1).reshape(
+                N_ulysses, self.num_heads * SP * self.head_size)
             return c
 
         # Cascade attention (rare case).
