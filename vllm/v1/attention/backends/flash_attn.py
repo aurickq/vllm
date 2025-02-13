@@ -207,6 +207,8 @@ class FlashAttentionImpl(AttentionImpl):
         # Ulysses Attention
         # from vllm.distributed.parallel_state import get_sp_group
 
+        global N_ranks
+        global N
         SP = get_sp_group().world_size
         SP_rank = get_sp_group().rank_in_group
         N_ulysses = N_ranks[SP_rank]
