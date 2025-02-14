@@ -899,12 +899,17 @@ def get_tp_group() -> GroupCoordinator:
 # kept for backward compatibility
 get_tensor_model_parallel_group = get_tp_group
 
-
 _SP: Optional[GroupCoordinator] = None
+
+
 def get_sp_group() -> GroupCoordinator:
     assert _SP is not None
     return _SP
+
+
 _SP_TP: Optional[GroupCoordinator] = None
+
+
 def get_sp_tp_group() -> GroupCoordinator:
     assert _SP_TP is not None
     return _SP_TP
@@ -1037,7 +1042,7 @@ def initialize_model_parallel(
     world_size: int = torch.distributed.get_world_size()
     backend = backend or torch.distributed.get_backend(
         get_world_group().device_group)
-    
+
     if (world_size != tensor_model_parallel_size *
             sequence_model_parallel_size * pipeline_model_parallel_size):
         raise RuntimeError(
@@ -1081,11 +1086,13 @@ def initialize_model_parallel(
                                     backend,
                                     use_custom_allreduce=False,
                                     group_name="pp")
-    
+
     # Build the sequence model-parallel groups.
-    ulysses_model_parallel_size = tensor_model_parallel_size * sequence_model_parallel_size
+    ulysses_model_parallel_size = tensor_model_parallel_size \
+        * sequence_model_parallel_size
     global _SP
-    assert _SP is None, ("sequence model parallel group is already initialized")
+    assert _SP is None, (
+        "sequence model parallel group is already initialized")
     group_ranks = []
     for i in range(pipeline_model_parallel_size):
         for j in range(tensor_model_parallel_size):
@@ -1102,12 +1109,15 @@ def initialize_model_parallel(
     assert _SP_TP is None
     group_ranks = []
     for i in range(pipeline_model_parallel_size):
-        ranks = list(range(i * ulysses_model_parallel_size, (i + 1) * ulysses_model_parallel_size))
+        ranks = list(
+            range(i * ulysses_model_parallel_size,
+                  (i + 1) * ulysses_model_parallel_size))
         group_ranks.append(ranks)
     _SP_TP = init_model_parallel_group(group_ranks,
-                                        get_world_group().local_rank,
-                                        backend,
-                                        group_name="sp_tp")
+                                       get_world_group().local_rank,
+                                       backend,
+                                       group_name="sp_tp")
+
 
 def ensure_kv_transfer_initialized(vllm_config: "VllmConfig") -> None:
     """
