@@ -30,8 +30,9 @@ from transformers import LlamaConfig
 
 from vllm.attention import Attention, AttentionMetadata
 from vllm.compilation.decorators import support_torch_compile
+# from vllm.config import CacheConfig, LoRAConfig
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import get_pp_group, get_tensor_model_parallel_world_size
+from vllm.distributed import get_pp_group, get_sp_group, get_tp_group
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
@@ -111,10 +112,11 @@ class LlamaAttention(nn.Module):
         super().__init__()
         layer_idx = extract_layer_index(prefix)
         self.hidden_size = hidden_size
-        tp_size = get_tensor_model_parallel_world_size()
+        tp_size = get_tp_group().world_size
+        sp_size = get_sp_group().world_size
         self.total_num_heads = num_heads
         assert self.total_num_heads % tp_size == 0
-        self.num_heads = self.total_num_heads // tp_size
+        self.num_heads = num_heads // tp_size
         self.total_num_kv_heads = num_kv_heads
         if self.total_num_kv_heads >= tp_size:
             # Number of KV heads is greater than TP size, so we partition
@@ -180,10 +182,10 @@ class LlamaAttention(nn.Module):
             sliding_window = None
 
         self.attn = Attention(
-            self.num_heads,
+            self.num_heads // sp_size,
             self.head_dim,
             self.scaling,
-            num_kv_heads=self.num_kv_heads,
+            num_kv_heads=self.num_kv_heads // sp_size,
             cache_config=cache_config,
             quant_config=quant_config,
             per_layer_sliding_window=sliding_window,
@@ -197,10 +199,14 @@ class LlamaAttention(nn.Module):
         kv_cache: torch.Tensor,
         attn_metadata: AttentionMetadata,
     ) -> torch.Tensor:
+        # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
+        # attention
         attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
+        # output projection
         output, _ = self.o_proj(attn_output)
         return output
 
@@ -280,11 +286,11 @@ class LlamaDecoderLayer(nn.Module):
                                        hidden_states=hidden_states,
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
-
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
         hidden_states = self.mlp(hidden_states)
+
         return hidden_states, residual
 
 
@@ -360,11 +366,13 @@ class LlamaModel(nn.Module):
             hidden_states = intermediate_tensors["hidden_states"]
             residual = intermediate_tensors["residual"]
 
+        # for i in range(0, 1):
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
             hidden_states, residual = layer(positions, hidden_states,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
+        # residual = hidden_states
 
         if not get_pp_group().is_last_rank:
             return IntermediateTensors({
@@ -373,6 +381,9 @@ class LlamaModel(nn.Module):
             })
 
         hidden_states, _ = self.norm(hidden_states, residual)
+
+        # hidden_states.fill_(hidden_states[0][0])
+
         return hidden_states
 
     def load_weights(self, weights: Iterable[Tuple[str,
@@ -440,6 +451,11 @@ class LlamaModel(nn.Module):
                 weight_loader(param, loaded_weight)
             loaded_params.add(name)
         return loaded_params
+
+
+N = None
+N_ranks = None
+N_ulysses = None
 
 
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
@@ -538,9 +554,45 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         intermediate_tensors: Optional[IntermediateTensors] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
+        global N
+        N = input_ids.shape[0]
+        SP = get_sp_group().world_size
+        global N_ranks
+        N_ranks = [N // SP] * SP
+        for i in range(N % SP):
+            N_ranks[i] += 1
+        SP_rank = get_sp_group().rank_in_group
+        global N_ulysses
+        N_ulysses = N_ranks[SP_rank]
+        N_start = sum(N_ranks[:SP_rank])
+
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"input_ids: {input_ids.shape}")
+        #     print(f"positions: {positions.shape}")
+        #     print(f"N {N}, SP {SP}, N_ranks {N_ranks} sum {sum(N_ranks)}")
+
+        input_ids[0:N_ulysses] = input_ids[N_start:N_start + N_ulysses]
+        positions[0:N_ulysses] = positions[N_start:N_start + N_ulysses]
+        input_ids = torch.narrow(input_ids, 0, 0, N_ulysses)
+        positions = torch.narrow(positions, 0, 0, N_ulysses)
         model_output = self.model(input_ids, positions, kv_caches,
                                   attn_metadata, intermediate_tensors,
                                   inputs_embeds)
+        # all-gather model_output
+        model_output_list = [
+            torch.empty((N_ranks[i], self.config.hidden_size),
+                        dtype=model_output.dtype,
+                        device=model_output.device) for i in range(SP)
+        ]
+        torch.distributed.all_gather(model_output_list,
+                                     model_output,
+                                     group=get_sp_group().device_group)
+        model_output = torch.cat(
+            model_output_list)  # .contiguous()  # + hidden_states.sum()
+        # if torch.distributed.get_rank() == 0:
+        #     print(f"model_output: {model_output.shape}")
+        #     print(f"model_output: {model_output}")
+
         return model_output
 
     def compute_logits(
