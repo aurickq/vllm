@@ -899,6 +899,17 @@ def get_tp_group() -> GroupCoordinator:
 # kept for backward compatibility
 get_tensor_model_parallel_group = get_tp_group
 
+
+_SP: Optional[GroupCoordinator] = None
+def get_sp_group() -> GroupCoordinator:
+    assert _SP is not None
+    return _SP
+_SP_TP: Optional[GroupCoordinator] = None
+def get_sp_tp_group() -> GroupCoordinator:
+    assert _SP_TP is not None
+    return _SP_TP
+
+
 _PP: Optional[GroupCoordinator] = None
 
 
@@ -993,6 +1004,7 @@ def init_distributed_environment(
 
 def initialize_model_parallel(
     tensor_model_parallel_size: int = 1,
+    sequence_model_parallel_size: int = 1,
     pipeline_model_parallel_size: int = 1,
     backend: Optional[str] = None,
 ) -> None:
@@ -1001,6 +1013,8 @@ def initialize_model_parallel(
 
     Arguments:
         tensor_model_parallel_size: number of GPUs used for tensor model
+            parallelism.
+        sequence_model_parallel_size: number of GPUs used for sequence model
             parallelism.
         pipeline_model_parallel_size: number of GPUs used for pipeline model
             parallelism.
@@ -1023,12 +1037,13 @@ def initialize_model_parallel(
     world_size: int = torch.distributed.get_world_size()
     backend = backend or torch.distributed.get_backend(
         get_world_group().device_group)
-
-    if (world_size
-            != tensor_model_parallel_size * pipeline_model_parallel_size):
+    
+    if (world_size != tensor_model_parallel_size *
+            sequence_model_parallel_size * pipeline_model_parallel_size):
         raise RuntimeError(
             f"world_size ({world_size}) is not equal to "
             f"tensor_model_parallel_size ({tensor_model_parallel_size}) x "
+            f"sequence_model_parallel_size ({sequence_model_parallel_size}) x "
             f"pipeline_model_parallel_size ({pipeline_model_parallel_size})")
 
     # Build the tensor model-parallel groups.
@@ -1066,7 +1081,33 @@ def initialize_model_parallel(
                                     backend,
                                     use_custom_allreduce=False,
                                     group_name="pp")
-
+    
+    # Build the sequence model-parallel groups.
+    ulysses_model_parallel_size = tensor_model_parallel_size * sequence_model_parallel_size
+    global _SP
+    assert _SP is None, ("sequence model parallel group is already initialized")
+    group_ranks = []
+    for i in range(pipeline_model_parallel_size):
+        for j in range(tensor_model_parallel_size):
+            ranks = list(
+                range(i * ulysses_model_parallel_size + j,
+                      (i + 1) * ulysses_model_parallel_size + j,
+                      tensor_model_parallel_size))
+            group_ranks.append(ranks)
+    _SP = init_model_parallel_group(group_ranks,
+                                    get_world_group().local_rank,
+                                    backend,
+                                    group_name="sp")
+    global _SP_TP
+    assert _SP_TP is None
+    group_ranks = []
+    for i in range(pipeline_model_parallel_size):
+        ranks = list(range(i * ulysses_model_parallel_size, (i + 1) * ulysses_model_parallel_size))
+        group_ranks.append(ranks)
+    _SP_TP = init_model_parallel_group(group_ranks,
+                                        get_world_group().local_rank,
+                                        backend,
+                                        group_name="sp_tp")
 
 def ensure_kv_transfer_initialized(vllm_config: "VllmConfig") -> None:
     """
@@ -1090,6 +1131,7 @@ def ensure_kv_transfer_initialized(vllm_config: "VllmConfig") -> None:
 
 def ensure_model_parallel_initialized(
     tensor_model_parallel_size: int,
+    sequence_model_parallel_size: int,
     pipeline_model_parallel_size: int,
     backend: Optional[str] = None,
 ) -> None:
@@ -1101,6 +1143,7 @@ def ensure_model_parallel_initialized(
         get_world_group().device_group)
     if not model_parallel_is_initialized():
         initialize_model_parallel(tensor_model_parallel_size,
+                                  sequence_model_parallel_size,
                                   pipeline_model_parallel_size, backend)
         return
 
@@ -1109,6 +1152,11 @@ def ensure_model_parallel_initialized(
     ), ("tensor parallel group already initialized, but of unexpected size: "
         f"{get_tensor_model_parallel_world_size()=} vs. "
         f"{tensor_model_parallel_size=}")
+    sp_world_size = get_sp_group().world_size
+    assert (sp_world_size == sequence_model_parallel_size), (
+        "sequence parallel group already initialized, but of unexpected size: "
+        f"{sp_world_size=} vs. "
+        f"{sequence_model_parallel_size=}")
     pp_world_size = get_pp_group().world_size
     assert (pp_world_size == pipeline_model_parallel_size), (
         "pipeline parallel group already initialized, but of unexpected size: "
@@ -1165,6 +1213,11 @@ def destroy_model_parallel():
     if _TP:
         _TP.destroy()
     _TP = None
+
+    global _SP
+    if _SP:
+        _SP.destroy()
+    _SP = None
 
     global _PP
     if _PP:
