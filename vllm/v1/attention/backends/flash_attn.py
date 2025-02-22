@@ -225,16 +225,10 @@ class FlashAttentionImpl(AttentionImpl):
             (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
             dtype=query.dtype,
             device=query.device)
-        if attn_metadata is None:
-            torch.distributed.barrier()
-            torch.cuda.synchronize()
         torch.distributed.all_to_all_single(qkv_,
                                             qkv,
                                             output_split_sizes=N_ranks,
                                             group=self.device_group)
-        if attn_metadata is None:
-            torch.distributed.barrier()
-            torch.cuda.synchronize()
         # unpack
         q_, k_, v_ = qkv_.split([
             self.num_heads * self.head_size, self.num_kv_heads *
@@ -316,17 +310,10 @@ class FlashAttentionImpl(AttentionImpl):
             )
         # Ulysses all-to-all 2/2
         c = output.view(self.SP, N_ulysses, self.num_heads, self.head_size)
-        # synchronization of NCCL operations is necessary for graph capture
-        if attn_metadata is None:
-            torch.distributed.barrier()
-            torch.cuda.synchronize()
         torch.distributed.all_to_all_single(c,
                                             c_,
                                             input_split_sizes=N_ranks,
                                             group=self.device_group)
-        if attn_metadata is None:
-            torch.distributed.barrier()
-            torch.cuda.synchronize()
         c = torch.transpose(c, 0, 1).reshape(
             N_ulysses, self.num_heads * self.SP * self.head_size)
         return c
