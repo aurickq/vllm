@@ -3348,8 +3348,11 @@ class VllmConfig:
             batch_size_capture_list = []
             if self.model_config is not None and \
                 not self.model_config.enforce_eager:
-                batch_size_capture_list = [1, 2, 4
-                                           ] + [i for i in range(8, 513, 8)]
+                batch_size_capture_list = [1, 2, 4] + [
+                    i for i in range(
+                        8, 513 /
+                        self.parallel_config.sequence_parallel_size, 8)
+                ]
 
         batch_size_capture_list = [
             size for size in batch_size_capture_list
