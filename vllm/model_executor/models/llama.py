@@ -453,11 +453,6 @@ class LlamaModel(nn.Module):
         return loaded_params
 
 
-N = None
-N_ranks = None
-N_ulysses = None
-
-
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     packed_modules_mapping = {
         "qkv_proj": ["q_proj", "k_proj", "v_proj"],
@@ -554,15 +549,12 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         intermediate_tensors: Optional[IntermediateTensors] = None,
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
-        global N
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
-        global N_ranks
         N_ranks = [N // SP] * SP
         for i in range(N % SP):
             N_ranks[i] += 1
         SP_rank = get_sp_group().rank_in_group
-        global N_ulysses
         N_ulysses = N_ranks[SP_rank]
         N_start = sum(N_ranks[:SP_rank])
 
@@ -587,15 +579,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         model_output = torch.empty((N, self.config.hidden_size),
                                    dtype=output.dtype,
                                    device=output.device)
-        # model_output_list = [
-        #     torch.empty((N_ranks[i], self.config.hidden_size),
-        #                 dtype=model_output.dtype,
-        #                 device=model_output.device) for i in range(SP)
-        # ]
         torch.distributed.all_gather_into_tensor(
             model_output, output, group=get_sp_group().device_group)
-        # model_output = torch.cat(
-        #     model_output_list)  # .contiguous()  # + hidden_states.sum()
         # if torch.distributed.get_rank() == 0:
         #     print(f"model_output: {model_output.shape}")
         #     print(f"model_output: {model_output}")
