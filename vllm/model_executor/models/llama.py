@@ -570,13 +570,12 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         #     self.numforward += 1
 
         # narrow the input
-        input_ids[0:N_ulysses] = input_ids[N_start:N_start + N_ulysses]
-        positions[0:N_ulysses] = positions[N_start:N_start + N_ulysses]
-        input_ids = torch.narrow(input_ids, 0, 0, N_ulysses)
-        positions = torch.narrow(positions, 0, 0, N_ulysses)
+        input_ids[:N_ulysses] = input_ids[N_start:N_start + N_ulysses]
+        positions[:N_ulysses] = positions[N_start:N_start + N_ulysses]
         # model forward
-        output = self.model(input_ids, positions, kv_caches, attn_metadata,
-                            intermediate_tensors, inputs_embeds)
+        output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
+                            kv_caches, attn_metadata, intermediate_tensors,
+                            inputs_embeds)
         # all-gather model_output
         model_output = torch.empty((N, self.config.hidden_size),
                                    dtype=output.dtype,
