@@ -592,9 +592,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         #                 dtype=model_output.dtype,
         #                 device=model_output.device) for i in range(SP)
         # ]
-        torch.distributed.all_gather(model_output,
-                                     output,
-                                     group=get_sp_group().device_group)
+        torch.distributed.all_gather_into_tensor(
+            model_output, output, group=get_sp_group().device_group)
         # model_output = torch.cat(
         #     model_output_list)  # .contiguous()  # + hidden_states.sum()
         # if torch.distributed.get_rank() == 0:
