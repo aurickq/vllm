@@ -551,12 +551,9 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     ) -> Union[torch.Tensor, IntermediateTensors]:
         N = input_ids.shape[0]
         SP = get_sp_group().world_size
-        N_ranks = [N // SP] * SP
-        for i in range(N % SP):
-            N_ranks[i] += 1
         SP_rank = get_sp_group().rank_in_group
-        N_ulysses = N_ranks[SP_rank]
-        N_start = sum(N_ranks[:SP_rank])
+        N_ulysses = N // SP
+        N_offset = N_ulysses * SP_rank
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"input_ids: {input_ids.shape}")
@@ -570,8 +567,8 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         #     self.numforward += 1
 
         # narrow the input
-        input_ids[:N_ulysses] = input_ids[N_start:N_start + N_ulysses]
-        positions[:N_ulysses] = positions[N_start:N_start + N_ulysses]
+        input_ids[:N_ulysses] = input_ids[N_offset:N_offset + N_ulysses]
+        positions[:N_ulysses] = positions[N_offset:N_offset + N_ulysses]
         # model forward
         output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
                             kv_caches, attn_metadata, intermediate_tensors,
