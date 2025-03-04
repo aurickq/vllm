@@ -220,16 +220,8 @@ class FlashAttentionImpl(AttentionImpl):
             dim=-1).transpose(0, 1).reshape(
                 -1, (self.num_heads + 2 * self.num_kv_heads) * self.head_size)
         # all-to-all
-        # qkv_ = torch.empty(
-        #     (N, (self.num_heads + 2 * self.num_kv_heads) * self.head_size),
-        #     dtype=query.dtype,
-        #     device=query.device)
         qkv_ = torch.empty_like(qkv)
-        torch.distributed.all_to_all_single(
-            qkv_,
-            qkv,
-            # output_split_sizes=N_ranks,
-            group=self.device_group)
+        torch.distributed.all_to_all_single(qkv_, qkv, group=self.device_group)
         # unpack
         q_, k_, v_ = qkv_.split([
             self.num_heads * self.head_size, self.num_kv_heads *
@@ -241,7 +233,6 @@ class FlashAttentionImpl(AttentionImpl):
         k_ = k_.reshape(-1, self.num_kv_heads, self.head_size)
         v_ = v_.reshape(-1, self.num_kv_heads, self.head_size)
         c_ = output.reshape((-1, self.num_heads, self.head_size))
-        # c_ = torch.empty_like(q_)
 
         # if torch.distributed.get_rank() == 0:
         #     print(f"\n \
