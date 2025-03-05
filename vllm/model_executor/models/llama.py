@@ -28,11 +28,12 @@ import torch
 from torch import nn
 from transformers import LlamaConfig
 
+import vllm.model_executor.layers.linear
 from vllm.attention import Attention, AttentionMetadata
 from vllm.compilation.decorators import support_torch_compile
 # from vllm.config import CacheConfig, LoRAConfig
 from vllm.config import CacheConfig, VllmConfig
-from vllm.distributed import get_pp_group, get_sp_group, get_tp_group
+from vllm.distributed import get_pp_group, get_sp_group, get_tp_group, get_sp_tp_group
 from vllm.model_executor.layers.activation import SiluAndMul
 from vllm.model_executor.layers.layernorm import RMSNorm
 from vllm.model_executor.layers.linear import (MergedColumnParallelLinear,
@@ -88,9 +89,12 @@ class LlamaMLP(nn.Module):
         self.act_fn = SiluAndMul()
 
     def forward(self, x):
+        #print("MLP 1")
         x, _ = self.gate_up_proj(x)
         x = self.act_fn(x)
+        #print("MLP 2")
         x, _ = self.down_proj(x)
+        #print("MLP 3")
         return x
 
 
@@ -201,7 +205,13 @@ class LlamaAttention(nn.Module):
     ) -> torch.Tensor:
         # qkv projection
         qkv, _ = self.qkv_proj(hidden_states)
-        q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        if vllm.model_executor.layers.linear.SP_TP_MODE:
+            q_size = self.q_size // get_sp_group().world_size
+            kv_size = self.kv_size // get_sp_group().world_size
+        else:
+            q_size = self.q_size
+            kv_size = self.kv_size
+        q, k, v = qkv.split([q_size, kv_size, kv_size], dim=-1)
         # positional embeddings
         q, k = self.rotary_emb(positions, q, k)
         # attention
@@ -282,14 +292,18 @@ class LlamaDecoderLayer(nn.Module):
         else:
             hidden_states, residual = self.input_layernorm(
                 hidden_states, residual)
+        #print("A")
         hidden_states = self.self_attn(positions=positions,
                                        hidden_states=hidden_states,
                                        kv_cache=kv_cache,
                                        attn_metadata=attn_metadata)
+        #print("B")
         # Fully Connected
         hidden_states, residual = self.post_attention_layernorm(
             hidden_states, residual)
         hidden_states = self.mlp(hidden_states)
+
+        #print("C")
 
         return hidden_states, residual
 
@@ -369,6 +383,7 @@ class LlamaModel(nn.Module):
         # for i in range(0, 1):
         for i in range(self.start_layer, self.end_layer):
             layer = self.layers[i]
+            #print("LAYER", i, vllm.model_executor.layers.linear.SP_TP_MODE)
             hidden_states, residual = layer(positions, hidden_states,
                                             kv_caches[i - self.start_layer],
                                             attn_metadata, residual)
@@ -566,22 +581,43 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # if get_forward_context().attn_metadata is not None:
         #     self.numforward += 1
 
+        inputs_embeds = self.get_input_embeddings(input_ids) if inputs_embeds is None else inputs_embeds
+
         # narrow the input
-        input_ids[:N_ulysses] = input_ids[N_offset:N_offset + N_ulysses]
-        positions[:N_ulysses] = positions[N_offset:N_offset + N_ulysses]
+        #print("BATCH SIZE", N)
+        if N >= 8:
+            input_ids[:N_ulysses] = input_ids[N_offset:N_offset + N_ulysses]
+            positions[:N_ulysses] = positions[N_offset:N_offset + N_ulysses]
+            inputs_embeds[:N_ulysses] = inputs_embeds[N_offset:N_offset + N_ulysses]
+            vllm.model_executor.layers.linear.SP_TP_MODE = False
+        else:
+            sp_group = get_sp_group()
+            sp_rank = sp_group.rank_in_group
+            sp_world_size = sp_group.world_size
+            assert inputs_embeds.size(1) % sp_world_size == 0
+            #chunk_size = inputs_embeds.size(1) // sp_world_size
+            #inputs_embeds = inputs_embeds.split(chunk_size, dim=1)[sp_rank]
+            vllm.model_executor.layers.linear.SP_TP_MODE = True
+            N_ulysses = N
         # model forward
         output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
                             kv_caches, attn_metadata, intermediate_tensors,
-                            inputs_embeds)
+                            inputs_embeds[:N_ulysses])
         # all-gather model_output
         model_output = torch.empty((N, self.config.hidden_size),
                                    dtype=output.dtype,
                                    device=output.device)
-        torch.distributed.all_gather_into_tensor(
-            model_output, output, group=get_sp_group().device_group)
+        if vllm.model_executor.layers.linear.SP_TP_MODE:
+            pass
+            # torch.distributed.all_gather(
+            #     model_output, output, group=get_sp_group().device_group)
+        else:
+            torch.distributed.all_gather_into_tensor(
+                model_output, output, group=get_sp_group().device_group)
         # if torch.distributed.get_rank() == 0:
         #     print(f"model_output: {model_output.shape}")
         #     print(f"model_output: {model_output}")
+        vllm.model_executor.layers.linear.SP_TP_MODE = False
 
         return model_output
 
