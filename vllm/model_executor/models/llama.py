@@ -369,6 +369,16 @@ class LlamaModel(nn.Module):
         intermediate_tensors: Optional[IntermediateTensors],
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
+        
+        if not vllm.model_executor.layers.linear.SP_TP_MODE:
+            N = input_ids.shape[0]
+            SP = get_sp_group().world_size
+            SP_rank = get_sp_group().rank_in_group
+            N_ulysses = N // SP
+            N_offset = N_ulysses * SP_rank
+            input_ids = input_ids[N_offset:N_offset + N_ulysses]
+            positions = positions[N_offset:N_offset + N_ulysses]
+
         if get_pp_group().is_first_rank:
             if inputs_embeds is not None:
                 hidden_states = inputs_embeds
@@ -468,27 +478,6 @@ class LlamaModel(nn.Module):
         return loaded_params
 
 
-@support_torch_compile
-class TPModeRunner(nn.Module):
-
-    def __init__(self, *, vllm_config: VllmConfig, model: LlamaModel, prefix: str = ""):
-        super().__init__()
-        self.config = vllm_config.model_config.hf_config
-        self._model = [model]  # Box it to avoid recursive registration
-
-    def forward(
-        self,
-        input_ids: Optional[torch.Tensor],
-        positions: torch.Tensor,
-        kv_caches: List[torch.Tensor],
-        attn_metadata: AttentionMetadata,
-        intermediate_tensors: Optional[IntermediateTensors],
-        inputs_embeds: Optional[torch.Tensor] = None,
-    ) -> Union[torch.Tensor, IntermediateTensors]:
-        return self._model[0].forward(input_ids, positions, kv_caches, attn_metadata,
-                                      intermediate_tensors, inputs_embeds)
-
-
 class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
     packed_modules_mapping = {
         "qkv_proj": ["q_proj", "k_proj", "v_proj"],
@@ -536,14 +525,6 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
 
         self.model = self._init_model(vllm_config=vllm_config,
                                       prefix=maybe_prefix(prefix, "model"))
-
-        vllm_config.compilation_config = (
-            vllm_config.compilation_config.model_copy())
-        vllm_config.compilation_config.inductor_compile_config = (
-            vllm_config.compilation_config.inductor_compile_config.copy())
-        self.tp_model = TPModeRunner(vllm_config=vllm_config,
-                                     model=self.model,
-                                     prefix=maybe_prefix(prefix, "tp_model"))
 
         if get_pp_group().is_last_rank:
             self.unpadded_vocab_size = config.vocab_size
@@ -594,10 +575,10 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         inputs_embeds: Optional[torch.Tensor] = None,
     ) -> Union[torch.Tensor, IntermediateTensors]:
         N = input_ids.shape[0]
-        SP = get_sp_group().world_size
-        SP_rank = get_sp_group().rank_in_group
-        N_ulysses = N // SP
-        N_offset = N_ulysses * SP_rank
+        # SP = get_sp_group().world_size
+        # SP_rank = get_sp_group().rank_in_group
+        # N_ulysses = N // SP
+        # N_offset = N_ulysses * SP_rank
 
         # from vllm.forward_context import get_forward_context
         # metadata = get_forward_context().attn_metadata
@@ -616,20 +597,22 @@ class LlamaForCausalLM(nn.Module, SupportsLoRA, SupportsPP):
         # narrow the input
         #print("BATCH SIZE", N)
         if N >= 8:
-            input_ids[:N_ulysses] = input_ids[N_offset:N_offset + N_ulysses]
-            positions[:N_ulysses] = positions[N_offset:N_offset + N_ulysses]
+            #input_ids[:N_ulysses] = input_ids[N_offset:N_offset + N_ulysses]
+            #positions[:N_ulysses] = positions[N_offset:N_offset + N_ulysses]
             #inputs_embeds[:N_ulysses] = inputs_embeds[N_offset:N_offset + N_ulysses]
             vllm.model_executor.layers.linear.SP_TP_MODE = False
             # model forward
-            output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
-                                kv_caches, attn_metadata, intermediate_tensors)
+            #output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
+            #                    kv_caches, attn_metadata, intermediate_tensors)
         else:
             vllm.model_executor.layers.linear.SP_TP_MODE = True
-            N_ulysses = N
+            # N_ulysses = N
             # model forward
-            output = self.tp_model(input_ids[:N_ulysses], positions[:N_ulysses],
-                                   kv_caches, attn_metadata, intermediate_tensors)
-        
+            #output = self.model(input_ids[:N_ulysses], positions[:N_ulysses],
+            #                    kv_caches, attn_metadata, intermediate_tensors)
+        output = self.model(input_ids, positions,
+                            kv_caches, attn_metadata, intermediate_tensors)
+
         # all-gather model_output
         model_output = torch.empty((N, self.config.hidden_size),
                                    dtype=output.dtype,

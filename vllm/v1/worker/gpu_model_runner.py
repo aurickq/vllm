@@ -753,11 +753,11 @@ class GPUModelRunner:
         SP = self.parallel_config.sequence_parallel_size
         num_input_tokens = (num_scheduled_tokens + SP - 1) // SP * SP
         if (self.use_cuda_graph
-                and num_input_tokens // SP <= self.cudagraph_batch_sizes[-1]):
+                and num_input_tokens <= self.cudagraph_batch_sizes[-1]):
             # Use piecewise CUDA graphs.
             # Add padding to the batch size.
-            num_input_tokens = SP * self.vllm_config.pad_for_cudagraph(
-                num_input_tokens // SP)
+            num_input_tokens = self.vllm_config.pad_for_cudagraph(
+                num_input_tokens)
         else:
             # Eager mode.
             pass
@@ -1036,8 +1036,8 @@ class GPUModelRunner:
             for num_tokens in reversed(self.cudagraph_batch_sizes):
                 for _ in range(self.vllm_config.compilation_config.
                                cudagraph_num_of_warmups):
-                    self._dummy_run(num_tokens * SP)
-                self._dummy_run(num_tokens * SP)
+                    self._dummy_run(num_tokens)
+                self._dummy_run(num_tokens)
 
         end_time = time.perf_counter()
         end_free_gpu_memory = torch.cuda.mem_get_info()[0]
